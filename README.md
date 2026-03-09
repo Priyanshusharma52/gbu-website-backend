@@ -539,3 +539,1313 @@ npx prisma init
 - Enforce request validation for every write endpoint.
 - Implement audit logging for every state transition and admin write operation.
 - Prefer idempotent job design for cron-based automations.
+
+---
+
+## 16) Current Repository Reality (As-Is State)
+
+This section documents what is already implemented in the current repository so that every team member has a clear baseline before starting new module work.
+
+### 16.1 Runtime and Startup
+- Root entrypoint: `server.js` → delegates to `src/server.js`.
+- `src/server.js`:
+  - Loads app from `src/app.js`.
+  - Reads config from `src/config/env.js`.
+  - Calls `connectDb()` from `src/config/db.js`.
+  - Starts Express listener on configured `PORT`.
+  - Logs startup success or failure via `src/config/logger.js`.
+
+### 16.2 App Middleware Chain
+- `src/app.js` currently includes:
+  - `helmet()`
+  - `cors()`
+  - `compression()`
+  - `express.json()`
+  - `express.urlencoded()`
+  - request ID assignment with `X-Request-Id`
+  - API level rate limiter
+  - `/api` routes mount
+  - notFound handler
+  - global error handler
+
+### 16.3 Implemented Route Groups
+- `GET /api/health`
+- `/api/auth/*`
+  - `POST /api/auth/login`
+  - `POST /api/auth/refresh`
+  - `POST /api/auth/logout`
+  - `GET /api/auth/me`
+- `/api/dashboard/*`
+  - `GET /api/dashboard/admin`
+  - `GET /api/dashboard/school`
+  - `GET /api/dashboard/faculty`
+
+### 16.4 Implemented Security Components
+- Authentication middleware: validates Bearer token.
+- Authorization middleware: validates role against route requirements.
+- API rate limit middleware and stricter auth rate limit middleware.
+
+### 16.5 Implemented Utility Components
+- Standardized success response helper.
+- Standardized error response helper.
+- Pagination helper.
+- Query sort helper.
+- Date helper.
+
+### 16.6 Placeholder Components (Important)
+- Database connector currently returns resolved promise (stub).
+- Most domain module folders currently export empty object in `index.js`.
+- Job files currently return `true` and are not wired to scheduler.
+- Swagger file exists but paths are not yet defined.
+
+---
+
+## 17) Environment and Configuration Guide (Detailed)
+
+### 17.1 Required Environment Variables
+- `NODE_ENV`
+  - Example: `development`, `staging`, `production`
+  - Default in code: `development`
+- `PORT`
+  - Example: `4000`
+  - Default in code: `4000`
+- `JWT_ACCESS_SECRET`
+  - Strong random secret for access token signing
+- `JWT_REFRESH_SECRET`
+  - Strong random secret for refresh token signing
+- `JWT_ACCESS_EXPIRES_IN`
+  - Example: `15m`
+- `JWT_REFRESH_EXPIRES_IN`
+  - Example: `7d`
+- `CORS_ORIGIN`
+  - Comma-separated allowed origins
+  - Example: `http://localhost:5173,http://localhost:3000`
+
+### 17.2 Example `.env` for Local Development
+```env
+NODE_ENV=development
+PORT=4000
+JWT_ACCESS_SECRET=replace-with-very-strong-value
+JWT_REFRESH_SECRET=replace-with-very-strong-value
+JWT_ACCESS_EXPIRES_IN=15m
+JWT_REFRESH_EXPIRES_IN=7d
+CORS_ORIGIN=http://localhost:5173
+```
+
+### 17.3 Example `.env` for Staging
+```env
+NODE_ENV=staging
+PORT=8080
+JWT_ACCESS_SECRET=staging-strong-access-secret
+JWT_REFRESH_SECRET=staging-strong-refresh-secret
+JWT_ACCESS_EXPIRES_IN=10m
+JWT_REFRESH_EXPIRES_IN=3d
+CORS_ORIGIN=https://staging-frontend.example.com
+```
+
+### 17.4 Example `.env` for Production
+```env
+NODE_ENV=production
+PORT=8080
+JWT_ACCESS_SECRET=prod-rotate-access-secret
+JWT_REFRESH_SECRET=prod-rotate-refresh-secret
+JWT_ACCESS_EXPIRES_IN=10m
+JWT_REFRESH_EXPIRES_IN=7d
+CORS_ORIGIN=https://www.example.com,https://admin.example.com
+```
+
+### 17.5 Configuration Validation Rules
+- Never use default JWT secrets in shared environments.
+- Keep access token expiry lower than refresh token expiry.
+- Keep CORS origins explicit and minimal.
+- Do not allow wildcard CORS in production.
+
+---
+
+## 18) API Contract Standards (Team-Wide)
+
+### 18.1 Response Contract (Mandatory)
+
+Success response:
+```json
+{
+  "success": true,
+  "message": "Human readable message",
+  "data": {},
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 0,
+    "pages": 1
+  }
+}
+```
+
+Error response:
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "errors": [
+    {
+      "field": "email",
+      "message": "Email is required"
+    }
+  ]
+}
+```
+
+### 18.2 HTTP Status Standard
+- `200` success read/update action.
+- `201` resource created.
+- `204` delete without body.
+- `400` validation failure.
+- `401` authentication missing/invalid.
+- `403` role does not have access.
+- `404` resource or route not found.
+- `409` conflict (duplicate/invalid state transition).
+- `422` semantic validation errors (optional if used).
+- `429` rate limit exceeded.
+- `500` unhandled server error.
+
+### 18.3 Request Validation Rules
+- Validate all write requests.
+- Validate all path params.
+- Validate all query filters for type and value range.
+- Return all validation errors together when possible.
+
+### 18.4 Pagination Standard
+- Query params:
+  - `page`
+  - `limit`
+  - `sortBy`
+  - `order`
+- Maximum `limit` should be capped (recommended `100`).
+
+### 18.5 Filtering Standard
+- Public listing endpoints should support:
+  - `search`
+  - `status`
+  - `dateFrom`
+  - `dateTo`
+  - `page`
+  - `limit`
+  - `sortBy`
+  - `order`
+
+---
+
+## 19) Complete Module Blueprint (Detailed Execution Guide)
+
+This section is a practical build guide for each module. It tells every developer what to create, what APIs to expose, and what validations to include.
+
+### 19.1 `auth` Module
+
+Purpose:
+- Login and token lifecycle management.
+
+Must-have files:
+- `auth.routes.js`
+- `auth.controller.js`
+- `auth.service.js`
+- `auth.validator.js` (recommended)
+
+Must-have endpoints:
+- `POST /api/auth/login`
+- `POST /api/auth/refresh`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
+
+Validation checklist:
+- Email required and valid format.
+- Password required and non-empty.
+- Refresh token required for refresh/logout.
+
+Security checklist:
+- Hash stored passwords.
+- Rotate refresh token strategy (recommended).
+- Invalidate token on logout.
+- Add login attempt logging.
+
+### 19.2 `dashboard` Module
+
+Purpose:
+- Role-specific aggregate data for dashboards.
+
+Must-have endpoints:
+- `GET /api/dashboard/admin`
+- `GET /api/dashboard/school`
+- `GET /api/dashboard/faculty`
+
+Validation checklist:
+- All endpoints behind `authenticate`.
+- Each endpoint behind strict `authorize(role)`.
+
+Data checklist:
+- Widget counts.
+- Last activity summary.
+- Pending approvals count.
+
+### 19.3 `users` Module
+
+Purpose:
+- User directory, role assignment, profile lifecycle.
+
+Must-have endpoints:
+- `GET /api/users`
+- `GET /api/users/:id`
+- `POST /api/users`
+- `PUT /api/users/:id`
+- `PATCH /api/users/:id/status`
+- `PATCH /api/users/:id/role`
+
+Validation checklist:
+- Unique email constraint.
+- Role must be known role value.
+- Status transitions allowed only by `super_admin`.
+
+Data checklist:
+- `users`
+- `user_profiles`
+- `user_role_history`
+
+### 19.4 `cms` Module
+
+Purpose:
+- Static pages and home sections management.
+
+Must-have endpoints:
+- `GET /api/cms/pages/:slug`
+- `PUT /api/cms/pages/:slug`
+- `GET /api/cms/home`
+- `PUT /api/cms/home`
+
+Validation checklist:
+- Slug uniqueness.
+- Publish state validation.
+- Versioning metadata.
+
+Data checklist:
+- `cms_pages`
+- `cms_blocks`
+- `cms_revisions`
+
+### 19.5 `academics` Module
+
+Purpose:
+- School, department, program, and course structures.
+
+Must-have endpoints:
+- `GET /api/academics/schools`
+- `GET /api/academics/schools/:id`
+- `POST /api/academics/schools`
+- `GET /api/academics/programs`
+- `GET /api/academics/courses`
+
+Validation checklist:
+- Unique school code.
+- Program linked to valid department.
+- Course credit constraints.
+
+Data checklist:
+- `schools`
+- `departments`
+- `programs`
+- `courses`
+- `course_outcomes`
+
+### 19.6 `departments` Module
+
+Purpose:
+- Department profile, contacts, notices, labs.
+
+Must-have endpoints:
+- `GET /api/departments`
+- `GET /api/departments/:slug`
+- `POST /api/departments`
+- `PUT /api/departments/:id`
+
+Validation checklist:
+- Department code uniqueness.
+- Slug uniqueness.
+- School reference must exist.
+
+Data checklist:
+- `department_profiles`
+- `department_contacts`
+- `department_notices`
+- `department_labs`
+
+### 19.7 `admissions` Module
+
+Purpose:
+- Admission cycle, applications, document verification.
+
+Must-have endpoints:
+- `GET /api/admissions/cycles/active`
+- `POST /api/admissions/applications`
+- `GET /api/admissions/applications/:id`
+- `PUT /api/admissions/documents/:id/verify`
+- `PUT /api/admissions/applications/:id/status`
+
+Validation checklist:
+- Prevent duplicate active application for cycle+program+applicant.
+- Document type mandatory by category.
+- FSM status transition checks.
+
+Data checklist:
+- `admission_cycles`
+- `admission_programs`
+- `applications`
+- `application_documents`
+- `application_status_history`
+
+### 19.8 `faculty` Module
+
+Purpose:
+- Faculty public profile and academic work records.
+
+Must-have endpoints:
+- `GET /api/faculty`
+- `GET /api/faculty/:id`
+- `PUT /api/faculty/:id/profile`
+- `GET /api/faculty/:id/publications`
+- `POST /api/faculty/:id/publications`
+
+Validation checklist:
+- Faculty can edit only own profile.
+- DOI or URL validation for publications.
+- Year range validation.
+
+Data checklist:
+- `faculty_profiles`
+- `faculty_publications`
+- `faculty_patents`
+- `faculty_talks`
+- `faculty_qualifications`
+
+### 19.9 `booking` Module
+
+Purpose:
+- Facility booking and slot management.
+
+Must-have endpoints:
+- `GET /api/facilities`
+- `GET /api/facilities/:id`
+- `GET /api/bookings/availability`
+- `POST /api/bookings/requests`
+- `PUT /api/bookings/requests/:id/approve`
+- `PUT /api/bookings/requests/:id/reject`
+
+Validation checklist:
+- No slot overlap.
+- Duration max cap.
+- Pricing rule validation.
+
+Data checklist:
+- `facilities`
+- `facility_pricing_rules`
+- `booking_requests`
+- `booking_slots`
+- `booking_invoices`
+
+### 19.10 `tenders` Module
+
+Purpose:
+- Tender publishing and lifecycle.
+
+Must-have endpoints:
+- `GET /api/tenders`
+- `GET /api/tenders/:id`
+- `POST /api/tenders`
+- `PUT /api/tenders/:id`
+
+Validation checklist:
+- Closing date must be future date on create.
+- Corrigendum references valid tender.
+- File versioning maintained.
+
+Data checklist:
+- `tenders`
+- `tender_documents`
+- `tender_corrigendum`
+
+### 19.11 `recruitments` Module
+
+Purpose:
+- Job posts and candidate application workflow.
+
+Must-have endpoints:
+- `GET /api/jobs`
+- `GET /api/jobs/:id`
+- `POST /api/jobs/:id/apply`
+- `GET /api/jobs/admin/applications`
+- `PUT /api/jobs/admin/applications/:id/status`
+
+Validation checklist:
+- Eligibility validation before apply.
+- Attachment format and size checks.
+- State transition checks for stage updates.
+
+Data checklist:
+- `job_posts`
+- `job_eligibility`
+- `job_applications`
+- `application_attachments`
+
+### 19.12 `grievance` Module
+
+Purpose:
+- Complaint lifecycle, assignment, escalation.
+
+Must-have endpoints:
+- `POST /api/grievance/complaints`
+- `GET /api/grievance/complaints/me`
+- `GET /api/grievance/complaints/:id`
+- `PUT /api/grievance/complaints/:id/assign`
+- `PUT /api/grievance/complaints/:id/status`
+- `POST /api/grievance/complaints/:id/comments`
+
+Validation checklist:
+- Category required.
+- SLA policy applied by category.
+- Escalation if SLA breach.
+
+Data checklist:
+- `complaints`
+- `complaint_assignments`
+- `complaint_timeline`
+- `complaint_comments`
+- `complaint_attachments`
+
+### 19.13 `rti` Module
+
+Purpose:
+- RTI records and downloadable disclosures.
+
+Must-have endpoints:
+- `GET /api/rti`
+- `GET /api/rti/:id`
+- `POST /api/rti`
+- `PUT /api/rti/:id`
+
+Validation checklist:
+- Publish date and effective date checks.
+- Document metadata required.
+
+Data checklist:
+- `rti_documents`
+- `rti_categories`
+
+### 19.14 `clubs` Module
+
+Purpose:
+- Club profiles, events, membership requests.
+
+Must-have endpoints:
+- `GET /api/clubs`
+- `GET /api/clubs/:id`
+- `POST /api/clubs/:id/join`
+- `GET /api/clubs/:id/events`
+
+Validation checklist:
+- One active membership per student per club.
+- Event date and registration window checks.
+
+Data checklist:
+- `clubs`
+- `club_events`
+- `club_memberships`
+
+### 19.15 `ncc` Module
+
+Purpose:
+- NCC activities and participant registrations.
+
+Must-have endpoints:
+- `GET /api/ncc/events`
+- `POST /api/ncc/register`
+
+Validation checklist:
+- Event capacity checks.
+- Duplicate registration prevention.
+
+Data checklist:
+- `ncc_events`
+- `ncc_registrations`
+
+### 19.16 `nss` Module
+
+Purpose:
+- NSS activities and participant registrations.
+
+Must-have endpoints:
+- `GET /api/nss/events`
+- `POST /api/nss/register`
+
+Validation checklist:
+- Capacity checks.
+- Duplicate registration prevention.
+
+Data checklist:
+- `nss_events`
+- `nss_registrations`
+
+### 19.17 `research` Module
+
+Purpose:
+- Research centers, funded projects, outputs.
+
+Must-have endpoints:
+- `GET /api/research/centers`
+- `GET /api/research/projects`
+- `POST /api/research/projects`
+
+Validation checklist:
+- Project funding dates.
+- PI association validation.
+
+Data checklist:
+- `research_centers`
+- `funded_projects`
+- `research_outputs`
+
+### 19.18 `placements` Module
+
+Purpose:
+- Placement stats, drives, company records.
+
+Must-have endpoints:
+- `GET /api/placements/stats`
+- `GET /api/placements/drives`
+- `POST /api/placements/drives`
+
+Validation checklist:
+- Salary and date format checks.
+- Program/school mapping integrity.
+
+Data checklist:
+- `placement_drives`
+- `placement_offers`
+- `placement_reports`
+
+### 19.19 `directory` Module
+
+Purpose:
+- Public searchable contact directory.
+
+Must-have endpoints:
+- `GET /api/directory`
+- `GET /api/directory/:id`
+
+Validation checklist:
+- Contact visibility flags.
+- Department mapping checks.
+
+Data checklist:
+- `directory_entries`
+
+### 19.20 `contact` Module
+
+Purpose:
+- Contact-us forms and inquiry tracking.
+
+Must-have endpoints:
+- `POST /api/contact/submit`
+- `GET /api/contact/admin/messages`
+
+Validation checklist:
+- Name, email, message required.
+- Spam and flood control.
+
+Data checklist:
+- `contact_submissions`
+
+### 19.21 `search` Module
+
+Purpose:
+- Unified global search API.
+
+Must-have endpoints:
+- `GET /api/search`
+
+Validation checklist:
+- Query length minimum.
+- Page and limit validations.
+
+Data checklist:
+- Search index tables or adapters.
+
+### 19.22 `media` Module
+
+Purpose:
+- Media uploads and gallery references.
+
+Must-have endpoints:
+- `POST /api/media/upload`
+- `GET /api/media`
+- `DELETE /api/media/:id`
+
+Validation checklist:
+- File type checks.
+- File size checks.
+- Access checks by role.
+
+Data checklist:
+- `media_assets`
+- `media_folders`
+
+### 19.23 `notifications` Module
+
+Purpose:
+- Notification dispatch and templates.
+
+Must-have endpoints:
+- `POST /api/notifications/send`
+- `GET /api/notifications/templates`
+
+Validation checklist:
+- Template exists check.
+- Recipient validation.
+
+Data checklist:
+- `notification_templates`
+- `notification_logs`
+
+### 19.24 `audit` Module
+
+Purpose:
+- Centralized audit trail for all critical writes.
+
+Must-have endpoints:
+- `GET /api/audit/logs`
+- `GET /api/audit/logs/:id`
+
+Validation checklist:
+- Super admin only access.
+- Filter validation.
+
+Data checklist:
+- `audit_logs`
+
+### 19.25 `common` Module
+
+Purpose:
+- Shared reference APIs (enums, dropdown values).
+
+Must-have endpoints:
+- `GET /api/common/lookups`
+- `GET /api/common/enums`
+
+Validation checklist:
+- Strict cache headers.
+
+Data checklist:
+- Static config / DB lookups.
+
+---
+
+## 20) Role-to-Endpoint Permission Matrix (Extended)
+
+| Endpoint Group | public | school | faculty | staff | super_admin |
+|---|---|---|---|---|---|
+| `/api/health` | Allow | Allow | Allow | Allow | Allow |
+| `/api/auth/login` | Allow | Allow | Allow | Allow | Allow |
+| `/api/auth/refresh` | Allow | Allow | Allow | Allow | Allow |
+| `/api/auth/logout` | Deny | Allow | Allow | Allow | Allow |
+| `/api/auth/me` | Deny | Allow | Allow | Allow | Allow |
+| `/api/dashboard/admin` | Deny | Deny | Deny | Deny | Allow |
+| `/api/dashboard/school` | Deny | Allow | Deny | Deny | Deny |
+| `/api/dashboard/faculty` | Deny | Deny | Allow | Deny | Deny |
+| `/api/users/*` | Deny | Deny | Deny | Deny | Allow |
+| `/api/admissions/applications` create | Allow | Allow | Allow | Allow | Allow |
+| `/api/admissions/admin/*` | Deny | Deny | Deny | Allow | Allow |
+| `/api/bookings/requests` create | Allow | Allow | Allow | Allow | Allow |
+| `/api/bookings/requests/*/approve` | Deny | Allow | Deny | Allow | Allow |
+| `/api/grievance/complaints` create | Allow | Allow | Allow | Allow | Allow |
+| `/api/grievance/reports/*` | Deny | Deny | Deny | Allow | Allow |
+| `/api/tenders` read | Allow | Allow | Allow | Allow | Allow |
+| `/api/tenders` write | Deny | Deny | Deny | Deny | Allow |
+| `/api/recruitments/jobs` read | Allow | Allow | Allow | Allow | Allow |
+| `/api/recruitments/jobs` write | Deny | Deny | Deny | Deny | Allow |
+
+Notes:
+- Actual route middleware decides final access.
+- Matrix must be synced with implementation and tests.
+
+---
+
+## 21) Data Modeling Guidelines (Practical)
+
+### 21.1 Naming Rules
+- Table names: plural snake_case.
+- Columns: snake_case.
+- Foreign keys: `<entity>_id`.
+- Timestamps: `created_at`, `updated_at`.
+
+### 21.2 Base Columns for Most Tables
+- `id` UUID or bigint.
+- `created_at` timestamp.
+- `updated_at` timestamp.
+- `created_by` optional FK.
+- `updated_by` optional FK.
+- `is_deleted` boolean (if soft delete required).
+
+### 21.3 Indexing Rules
+- Add index on all frequent filter columns.
+- Add composite index for frequent combined filters.
+- Add unique constraints for business uniqueness.
+
+### 21.4 Soft Delete Rules
+- Do not physically delete auditable records.
+- Use `is_deleted` + `deleted_at`.
+- Exclude deleted records by default query scope.
+
+### 21.5 Migration Rules
+- Every migration must be reversible.
+- Avoid destructive migration in one shot.
+- Use backfill scripts for large data transitions.
+
+---
+
+## 22) Validation and Error Handling Guidelines
+
+### 22.1 Validation Layer Strategy
+- Perform schema validation in middleware.
+- Perform business validation in service layer.
+- Keep controllers thin.
+
+### 22.2 Error Categories
+- Validation errors (`400` / `422`).
+- Authentication errors (`401`).
+- Authorization errors (`403`).
+- Conflict errors (`409`).
+- Not found errors (`404`).
+- Internal errors (`500`).
+
+### 22.3 Error Payload Rules
+- Always return `message`.
+- Return field-level errors in array.
+- Do not leak stack traces to clients.
+
+### 22.4 Logging Rules
+- Log all unhandled errors with request id.
+- Log all authentication failures with safe metadata.
+- Log all admin write actions.
+
+---
+
+## 23) Security Hardening Checklist
+
+### 23.1 Authentication
+- Use strong JWT secrets.
+- Rotate secrets periodically.
+- Invalidate refresh token on logout.
+
+### 23.2 Authorization
+- Apply `authorize()` middleware on every protected route.
+- Prefer explicit role list on every route.
+- Add tests for forbidden access.
+
+### 23.3 API Surface
+- Keep payload size limits strict.
+- Apply route-level rate limits where needed.
+- Validate all inputs.
+
+### 23.4 Operational Security
+- Use HTTPS in staging/production.
+- Keep dependencies patched.
+- Enable monitoring for suspicious spikes.
+
+### 23.5 Data Protection
+- Avoid logging sensitive fields.
+- Encrypt sensitive data at rest when required.
+- Restrict DB user permissions by environment.
+
+---
+
+## 24) Performance and Scalability Guidelines
+
+### 24.1 API Performance
+- Use pagination for all list endpoints.
+- Select only required columns.
+- Avoid N+1 query patterns.
+
+### 24.2 Caching Strategy
+- Cache public frequently-read responses.
+- Use short TTL for dynamic content.
+- Invalidate cache on update operations.
+
+### 24.3 Database Performance
+- Monitor slow query logs.
+- Add targeted indexes.
+- Use read replicas for heavy read patterns (future scale).
+
+### 24.4 Job Performance
+- Make jobs idempotent.
+- Track job run metrics and durations.
+- Add retry policy with backoff.
+
+---
+
+## 25) Scheduler and Background Job Design
+
+### 25.1 Planned Jobs
+- `archiveTenders.job.js`
+  - Runs daily.
+  - Archives expired tenders.
+- `bookingReminder.job.js`
+  - Runs hourly.
+  - Sends reminders for upcoming bookings.
+- `newsletter.job.js`
+  - Runs on schedule.
+  - Dispatches newsletter batches.
+
+### 25.2 Job Metadata to Track
+- `job_name`
+- `started_at`
+- `finished_at`
+- `status`
+- `records_processed`
+- `error_message`
+
+### 25.3 Job Failure Handling
+- Retry transient failures.
+- Alert on repeated failures.
+- Maintain dead-letter queue for unrecoverable payloads.
+
+---
+
+## 26) API Documentation and Swagger Completion Plan
+
+### 26.1 Current Status
+- `src/docs/swagger.yaml` has only base metadata.
+
+### 26.2 Required Additions
+- Paths for all active endpoints.
+- Request schemas.
+- Response schemas.
+- Security scheme for Bearer auth.
+- Role notes in endpoint descriptions.
+
+### 26.3 Documentation Workflow
+1. Add endpoint implementation.
+2. Add/Update swagger path and schema.
+3. Add examples.
+4. Validate with OpenAPI linter.
+5. Publish docs preview.
+
+---
+
+## 27) Testing Blueprint (Expanded)
+
+### 27.1 Unit Tests
+- Service logic tests.
+- Validation helper tests.
+- Utility function tests.
+
+### 27.2 Integration Tests
+- Auth login/refresh/logout flow.
+- Protected route access rules.
+- Module workflow happy path.
+- Module workflow failure path.
+
+### 27.3 Contract Tests
+- Response shape checks.
+- Status code checks.
+- Error payload checks.
+
+### 27.4 Authorization Tests
+- Role allowed scenarios.
+- Role denied scenarios.
+- Missing token scenarios.
+- Invalid token scenarios.
+
+### 27.5 Non-Functional Tests
+- Basic load test for key endpoints.
+- Rate limit behavior test.
+- Recovery behavior after induced failure.
+
+---
+
+## 28) Team Development Workflow
+
+### 28.1 Branching Model
+- `main` for stable production-ready code.
+- `develop` for integrated active work.
+- `feature/<module>-<short-name>` for module feature work.
+- `hotfix/<ticket>` for urgent fixes.
+
+### 28.2 Commit Message Format
+- `feat(module): add admissions application create API`
+- `fix(auth): validate missing refresh token`
+- `docs(readme): add module blueprint section`
+- `test(booking): add overlap conflict test`
+
+### 28.3 Pull Request Checklist
+- Code compiles and runs.
+- Validation added for all write inputs.
+- Route protection added if required.
+- Swagger updated.
+- Tests added/updated.
+- No secrets committed.
+
+### 28.4 Code Review Checklist
+- Naming consistency.
+- Clear error handling.
+- No dead code.
+- No insecure patterns.
+- Good test coverage for critical paths.
+
+---
+
+## 29) Deployment and Operations Runbook
+
+### 29.1 Build and Start
+- Install dependencies.
+- Set environment variables.
+- Run process manager in production.
+
+### 29.2 Health Checks
+- `GET /api/health` should return success.
+- Check process uptime and memory.
+
+### 29.3 Logs
+- Capture stdout and stderr.
+- Parse JSON logs for central monitoring.
+- Search by request ID.
+
+### 29.4 Rollback Strategy
+- Keep previous stable deployment artifact.
+- Rollback immediately on severe production errors.
+- Record incident notes after rollback.
+
+### 29.5 Incident Playbook
+1. Acknowledge incident.
+2. Capture scope and impact.
+3. Mitigate with rollback or config patch.
+4. Communicate status.
+5. Perform root cause analysis.
+
+---
+
+## 30) Mermaid Diagrams (Expanded)
+
+### 30.1 High-Level Service Architecture
+
+```mermaid
+flowchart TD
+  Client[Web Client] --> API[Express API]
+  API --> Auth[Auth Module]
+  API --> Dashboard[Dashboard Module]
+  API --> Future[Future Domain Modules]
+  API --> Jobs[Job Scheduler]
+  API --> DB[(PostgreSQL)]
+  API --> Logs[Structured Logs]
+```
+
+### 30.2 Middleware Request Flow
+
+```mermaid
+flowchart LR
+  R[Incoming Request] --> A[helmet/cors/compression]
+  A --> B[body parser]
+  B --> C[requestId middleware]
+  C --> D[apiRateLimiter]
+  D --> E[Route Handler]
+  E --> F[successResponse/errorResponse]
+  F --> G[Outgoing Response]
+```
+
+### 30.3 Auth and RBAC Route Flow
+
+```mermaid
+flowchart TD
+  Req[Request with Bearer Token] --> AuthN{authenticate}
+  AuthN -->|fail| E401[401 Unauthorized]
+  AuthN -->|pass| AuthZ{authorize role}
+  AuthZ -->|fail| E403[403 Forbidden]
+  AuthZ -->|pass| Ctrl[Controller]
+  Ctrl --> Res[200 Success]
+```
+
+### 30.4 Admission Workflow State Machine
+
+```mermaid
+stateDiagram-v2
+  [*] --> submitted
+  submitted --> under_review
+  under_review --> docs_verified
+  under_review --> docs_rejected
+  docs_rejected --> under_review
+  docs_verified --> shortlisted
+  shortlisted --> admitted
+  shortlisted --> rejected
+  admitted --> [*]
+  rejected --> [*]
+```
+
+### 30.5 Booking Request Lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> pending
+  pending --> approved
+  pending --> rejected
+  pending --> expired
+  approved --> completed
+  approved --> cancelled
+  rejected --> [*]
+  expired --> [*]
+  completed --> [*]
+  cancelled --> [*]
+```
+
+### 30.6 Grievance Escalation Flow
+
+```mermaid
+flowchart TD
+  Create[Complaint Created] --> Assign[Assigned to Officer]
+  Assign --> SLA{SLA Breach?}
+  SLA -->|No| Resolve[Resolved]
+  SLA -->|Yes| Esc1[Escalate Level 1]
+  Esc1 --> SLA2{Still Open?}
+  SLA2 -->|Yes| Esc2[Escalate Level 2]
+  SLA2 -->|No| Resolve
+  Esc2 --> Close[Closure with audit]
+```
+
+### 30.7 Folder Dependency Diagram
+
+```mermaid
+graph LR
+  App[src/app.js] --> Routes[src/routes]
+  Routes --> Modules[src/modules]
+  Modules --> Middleware[src/middleware]
+  Modules --> Utils[src/utils]
+  Server[src/server.js] --> Config[src/config]
+  Jobs[src/jobs] --> Modules
+  Docs[src/docs/swagger.yaml] --> Routes
+```
+
+---
+
+## 31) Module Delivery Template (Use for Every New Module)
+
+Copy this checklist for each module issue/ticket.
+
+### 31.1 Planning
+- Define business scope.
+- Define roles and permissions.
+- Define data entities.
+- Define endpoint list.
+
+### 31.2 Implementation
+- Add route file.
+- Add controller file.
+- Add service file.
+- Add validator file.
+- Add repository/data access file if needed.
+
+### 31.3 Security and Validation
+- Add authenticate middleware where required.
+- Add authorize middleware where required.
+- Add request schema validation.
+- Add business rule validation.
+
+### 31.4 Documentation
+- Add endpoint in README module section.
+- Add path/schema in Swagger.
+- Add request/response examples.
+
+### 31.5 Testing
+- Add unit tests.
+- Add integration tests.
+- Add authorization tests.
+
+### 31.6 Release
+- Merge after review.
+- Deploy to staging.
+- Verify with frontend team.
+- Release to production.
+
+---
+
+## 32) Sample API Examples (Ready for Team Use)
+
+### 32.1 Login Request
+`POST /api/auth/login`
+
+Request:
+```json
+{
+  "email": "admin@gbu.ac.in",
+  "password": "Admin@123"
+}
+```
+
+Success response:
+```json
+{
+  "success": true,
+  "message": "Login successful",
+  "data": {
+    "user": {
+      "id": 1,
+      "name": "Super Admin",
+      "email": "admin@gbu.ac.in",
+      "role": "super_admin"
+    },
+    "accessToken": "<jwt>",
+    "refreshToken": "<jwt>"
+  }
+}
+```
+
+### 32.2 Refresh Token Request
+`POST /api/auth/refresh`
+
+Request:
+```json
+{
+  "refreshToken": "<jwt>"
+}
+```
+
+Success response:
+```json
+{
+  "success": true,
+  "message": "Access token refreshed",
+  "data": {
+    "accessToken": "<jwt>"
+  }
+}
+```
+
+### 32.3 Dashboard Request (Admin)
+`GET /api/dashboard/admin`
+
+Headers:
+```text
+Authorization: Bearer <accessToken>
+```
+
+Success response:
+```json
+{
+  "success": true,
+  "message": "Admin dashboard data fetched",
+  "data": {
+    "dashboard": "admin",
+    "role": "super_admin",
+    "widgets": [
+      "user-management",
+      "audit-logs",
+      "system-settings",
+      "reports"
+    ]
+  }
+}
+```
+
+### 32.4 Validation Error Example
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "errors": [
+    {
+      "field": "email",
+      "message": "Email is required"
+    },
+    {
+      "field": "password",
+      "message": "Password is required"
+    }
+  ]
+}
+```
+
+### 32.5 Forbidden Error Example
+```json
+{
+  "success": false,
+  "message": "Forbidden",
+  "errors": [
+    {
+      "field": "role",
+      "message": "You do not have permission for this route"
+    }
+  ]
+}
+```
+
+---
+
+## 33) Production Readiness Checklist
+
+### 33.1 Configuration
+- Production env values configured.
+- No default secrets used.
+- CORS only trusted domains.
+
+### 33.2 Security
+- Rate limit active.
+- Helmet active.
+- Auth and RBAC enforced.
+- Sensitive logs masked.
+
+### 33.3 Observability
+- Structured logs collected.
+- Error alerts configured.
+- Health endpoint monitored.
+
+### 33.4 Reliability
+- DB backups enabled.
+- Rollback plan tested.
+- Critical jobs monitored.
+
+### 33.5 Documentation
+- Swagger up to date.
+- README up to date.
+- Runbook approved.
+
+---
+
+## 34) Handover Notes for New Developers
+
+### 34.1 First-Day Setup
+1. Clone repository.
+2. Create `.env` from template.
+3. Run `npm install`.
+4. Run `npm run dev`.
+5. Verify `GET /api/health`.
+
+### 34.2 First Code Task Recommendation
+1. Pick one placeholder module.
+2. Add route/controller/service skeleton.
+3. Add one read endpoint.
+4. Add one write endpoint with validation.
+5. Add tests and docs.
+
+### 34.3 Important Coding Rules
+- Keep controller light.
+- Keep business logic in service.
+- Keep response shape consistent.
+- Keep role checks explicit.
+
+---
+
+## 35) Final Summary
+
+This README now has two layers together:
+- Original master planning content (preserved).
+- Expanded execution-grade team documentation (added).
+
+With this combined documentation, team members can:
+- Understand current implementation quickly.
+- Build pending modules with clear standards.
+- Follow consistent API contracts.
+- Maintain security and quality across releases.
+
