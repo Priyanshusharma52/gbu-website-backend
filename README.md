@@ -5,11 +5,10 @@ Single source of truth for the full GBU website backend.
 ## Stack
 - Runtime: Node.js
 - Framework: Express.js
-- Database: PostgreSQL (preferred), MySQL (optional)
+- Database: PostgreSQL 
 - ORM: Sequelize (recommended) or Prisma
 - Auth: JWT + Refresh Token + RBAC
-- API Style: REST (`/api/v1/...`)
-- Deployment: Vercel-compatible API routes or separate backend server
+- API Style: REST (`/api/...`)
 
 ---
 
@@ -117,34 +116,34 @@ Roles:
 - Module: `cms-home`
 - Entities: `home_banners`, `home_sections`, `home_quick_links`, `home_stats`, `featured_items`
 - APIs:
-  - `GET /api/v1/home`
-  - `PUT /api/v1/home` (`super_admin`)
-  - `GET /api/v1/quick-links`
-  - `POST /api/v1/quick-links` (`super_admin`)
+  - `GET /api/home`
+  - `PUT /api/home` (`super_admin`)
+  - `GET /api/quick-links`
+  - `POST /api/quick-links` (`super_admin`)
 
 ### B. About University Pages
 - Frontend: `pages/Aboutus/*`
 - Module: `about-cms`
 - Entities: `about_pages`, `governance_members`, `policy_documents`, `disclosures`, `leadership_profiles`
 - APIs:
-  - `GET /api/v1/about/:slug`
-  - `PUT /api/v1/about/:slug` (`super_admin`)
-  - `GET /api/v1/governance`
-  - `POST /api/v1/governance` (`super_admin`)
+  - `GET /api/about/:slug`
+  - `PUT /api/about/:slug` (`super_admin`)
+  - `GET /api/governance`
+  - `POST /api/governance` (`super_admin`)
 
 ### C. Academics, Schools, Departments, Programs
 - Frontend: `pages/Academic/*`, `pages/departments/*`, `components/departments/*`
 - Modules: `academics`, `departments`, `programs`
 - Entities: `schools`, `departments`, `programs`, `courses`, `course_outcomes`, `department_contacts`, `department_notices`, `labs`, `boards_of_study`
 - APIs:
-  - `GET /api/v1/schools`
-  - `GET /api/v1/schools/:id`
-  - `GET /api/v1/departments`
-  - `GET /api/v1/departments/:slug`
-  - `GET /api/v1/programs?departmentId=`
-  - `GET /api/v1/courses?programId=`
-  - `POST /api/v1/departments` (`super_admin`)
-  - `PUT /api/v1/departments/:id` (`super_admin`)
+  - `GET /api/schools`
+  - `GET /api/schools/:id`
+  - `GET /api/departments`
+  - `GET /api/departments/:slug`
+  - `GET /api/programs?departmentId=`
+  - `GET /api/courses?programId=`
+  - `POST /api/departments` (`super_admin`)
+  - `PUT /api/departments/:id` (`super_admin`)
 - Rules:
   - Unique department codes (e.g. `CSE`, `ECE`)
   - Syllabus versioning
@@ -155,11 +154,11 @@ Roles:
 - Module: `faculty`
 - Entities: `faculty_profiles`, `faculty_qualifications`, `faculty_teaching`, `faculty_publications`, `faculty_patents`, `faculty_talks`, `faculty_admin_roles`, `faculty_certifications`, `faculty_social_impact`, `faculty_research_groups`
 - APIs:
-  - `GET /api/v1/faculty`
-  - `GET /api/v1/faculty/:id`
-  - `GET /api/v1/faculty/:id/publications`
-  - `POST /api/v1/faculty/:id/publications` (`faculty` / `super_admin`)
-  - `PUT /api/v1/faculty/:id/profile` (`faculty` / `super_admin`)
+  - `GET /api/faculty`
+  - `GET /api/faculty/:id`
+  - `GET /api/faculty/:id/publications`
+  - `POST /api/faculty/:id/publications` (`faculty` / `super_admin`)
+  - `PUT /api/faculty/:id/profile` (`faculty` / `super_admin`)
 - Rules:
   - Faculty edits own profile only
   - `super_admin` edits all
@@ -170,14 +169,14 @@ Roles:
 - Module: `admissions`
 - Entities: `admission_cycles`, `admission_programs`, `applications`, `application_documents`, `application_status_history`, `reservation_categories`, `eligibility_rules`
 - APIs:
-  - `GET /api/v1/admissions/cycles/active`
-  - `POST /api/v1/admissions/applications`
-  - `GET /api/v1/admissions/applications/:id`
-  - `GET /api/v1/admissions/admin/applications`
-  - `PUT /api/v1/admissions/documents/:id/verify`
-  - `PUT /api/v1/admissions/applications/:id/status`
-  - `GET /api/v1/admissions/stats`
-  - `GET /api/v1/admissions/timeline`
+  - `GET /api/admissions/cycles/active`
+  - `POST /api/admissions/applications`
+  - `GET /api/admissions/applications/:id`
+  - `GET /api/admissions/admin/applications`
+  - `PUT /api/admissions/documents/:id/verify`
+  - `PUT /api/admissions/applications/:id/status`
+  - `GET /api/admissions/stats`
+  - `GET /api/admissions/timeline`
 - Rules:
   - No duplicate active application for same cycle + program
   - Mandatory docs vary by category
@@ -188,14 +187,14 @@ Roles:
 - Module: `booking`
 - Entities: `facilities`, `facility_images`, `facility_pricing_rules`, `facility_documents`, `booking_requests`, `booking_slots`, `booking_invoices`
 - APIs:
-  - `GET /api/v1/facilities`
-  - `GET /api/v1/facilities/:id`
-  - `GET /api/v1/facilities/:id/pricing`
-  - `GET /api/v1/bookings/availability?facilityId=&from=&to=`
-  - `POST /api/v1/bookings/requests`
-  - `PUT /api/v1/bookings/requests/:id/approve`
-  - `PUT /api/v1/bookings/requests/:id/reject`
-  - `GET /api/v1/bookings/my`
+  - `GET /api/facilities`
+  - `GET /api/facilities/:id`
+  - `GET /api/facilities/:id/pricing`
+  - `GET /api/bookings/availability?facilityId=&from=&to=`
+  - `POST /api/bookings/requests`
+  - `PUT /api/bookings/requests/:id/approve`
+  - `PUT /api/bookings/requests/:id/reject`
+  - `GET /api/bookings/my`
 - Rules:
   - Prevent slot overlap
   - Dynamic pricing by role + event type + duration
@@ -206,13 +205,13 @@ Roles:
 - Module: `communications`
 - Entities: `announcements`, `news_items`, `events`, `event_tags`, `media_gallery_items`, `newsletter_issues`
 - APIs:
-  - `GET /api/v1/announcements`
-  - `GET /api/v1/news`
-  - `GET /api/v1/events`
-  - `GET /api/v1/events/:id`
-  - `GET /api/v1/events/:id/related`
-  - `POST /api/v1/events` (`super_admin`)
-  - `POST /api/v1/newsletters` (`super_admin`)
+  - `GET /api/announcements`
+  - `GET /api/news`
+  - `GET /api/events`
+  - `GET /api/events/:id`
+  - `GET /api/events/:id/related`
+  - `POST /api/events` (`super_admin`)
+  - `POST /api/newsletters` (`super_admin`)
 - Query features:
   - `search`, `category`, `dateFrom`, `dateTo`, `tags`
   - `page`, `limit`, `sortBy`, `order`
@@ -222,10 +221,10 @@ Roles:
 - Module: `tenders`
 - Entities: `tenders`, `tender_documents`, `tender_corrigendum`
 - APIs:
-  - `GET /api/v1/tenders?status=active|archived`
-  - `GET /api/v1/tenders/:id`
-  - `POST /api/v1/tenders` (`super_admin`)
-  - `PUT /api/v1/tenders/:id` (`super_admin`)
+  - `GET /api/tenders?status=active|archived`
+  - `GET /api/tenders/:id`
+  - `POST /api/tenders` (`super_admin`)
+  - `PUT /api/tenders/:id` (`super_admin`)
 - Rules:
   - Auto-archive after closing date via cron
   - Corrigendum file versioning
@@ -235,24 +234,24 @@ Roles:
 - Module: `recruitments`
 - Entities: `job_posts`, `job_eligibility`, `job_applications`, `application_attachments`, `recruitment_stages`
 - APIs:
-  - `GET /api/v1/jobs`
-  - `GET /api/v1/jobs/:id`
-  - `POST /api/v1/jobs/:id/apply`
-  - `GET /api/v1/jobs/super-admin/applications`
-  - `PUT /api/v1/jobs/super-admin/applications/:id/status`
+  - `GET /api/jobs`
+  - `GET /api/jobs/:id`
+  - `POST /api/jobs/:id/apply`
+  - `GET /api/jobs/super-admin/applications`
+  - `PUT /api/jobs/super-admin/applications/:id/status`
 
 ### J. Grievance Portal (Role Dashboards)
 - Frontend: `pages/grievance/*`, `components/Grievance/*`
 - Module: `grievance`
 - Entities: `complaints`, `complaint_assignments`, `complaint_comments`, `complaint_attachments`, `complaint_timeline`, `complaint_escalation_rules`, `feedback_ratings`
 - APIs:
-  - `POST /api/v1/grievance/complaints`
-  - `GET /api/v1/grievance/complaints/me`
-  - `GET /api/v1/grievance/complaints/:id`
-  - `PUT /api/v1/grievance/complaints/:id/assign`
-  - `PUT /api/v1/grievance/complaints/:id/status`
-  - `POST /api/v1/grievance/complaints/:id/comments`
-  - `GET /api/v1/grievance/reports/super-admin`
+  - `POST /api/grievance/complaints`
+  - `GET /api/grievance/complaints/me`
+  - `GET /api/grievance/complaints/:id`
+  - `PUT /api/grievance/complaints/:id/assign`
+  - `PUT /api/grievance/complaints/:id/status`
+  - `POST /api/grievance/complaints/:id/comments`
+  - `GET /api/grievance/reports/super-admin`
 - Rules:
   - SLA per category
   - Escalation on SLA breach
@@ -263,42 +262,42 @@ Roles:
 - Modules: `clubs`, `ncc`, `nss`, `campus-life`
 - Entities: `clubs`, `club_events`, `club_memberships`, `ncc_activities`, `nss_activities`, `campus_facilities`, `campus_content`, `campus_gallery`
 - APIs:
-  - `GET /api/v1/clubs`
-  - `POST /api/v1/clubs/:id/join`
-  - `GET /api/v1/ncc/events`
-  - `GET /api/v1/nss/events`
-  - `POST /api/v1/ncc/register`
-  - `POST /api/v1/nss/register`
-  - `GET /api/v1/campus-life/content/:slug`
+  - `GET /api/clubs`
+  - `POST /api/clubs/:id/join`
+  - `GET /api/ncc/events`
+  - `GET /api/nss/events`
+  - `POST /api/ncc/register`
+  - `POST /api/nss/register`
+  - `GET /api/campus-life/content/:slug`
 
 ### L. Research + IPR + Incubation + DAC
 - Frontend: `pages/Reasearch/*`, `pages/dac/DAC.jsx`, `components/dac/*`
 - Modules: `research`, `ipr`, `incubation`, `dac`
 - Entities: `research_centers`, `funded_projects`, `research_publications`, `ipr_items`, `incubation_services`, `incubation_startups`, `dac_applications`
 - APIs:
-  - `GET /api/v1/research/publications`
-  - `GET /api/v1/research/projects`
-  - `GET /api/v1/ipr`
-  - `POST /api/v1/dac/apply`
+  - `GET /api/research/publications`
+  - `GET /api/research/projects`
+  - `GET /api/ipr`
+  - `POST /api/dac/apply`
 
 ### M. Placement Module
 - Frontend: `pages/Placement/*`
 - Module: `placements`
 - Entities: `placement_stats`, `recruiters`, `internship_programs`, `placement_brochures`, `training_programs`
 - APIs:
-  - `GET /api/v1/placements/stats`
-  - `GET /api/v1/placements/recruiters`
-  - `GET /api/v1/placements/internships`
+  - `GET /api/placements/stats`
+  - `GET /api/placements/recruiters`
+  - `GET /api/placements/internships`
 
 ### N. Contact + Directory + Sitemap + Search
 - Frontend: `pages/Contact/*`, `pages/directory/ContactDirectory.jsx`, `components/Searchbar/*`, `pages/Sitemap/*`
 - Modules: `contact`, `directory`, `search`, `sitemap`
 - Entities: `contact_messages`, `directory_entries`, `search_index`, `sitemap_routes`
 - APIs:
-  - `POST /api/v1/contact/messages`
-  - `GET /api/v1/directory`
-  - `GET /api/v1/search?q=`
-  - `GET /api/v1/sitemap`
+  - `POST /api/contact/messages`
+  - `GET /api/directory`
+  - `GET /api/search?q=`
+  - `GET /api/sitemap`
 
 ---
 
