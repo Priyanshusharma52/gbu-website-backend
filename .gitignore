@@ -1,0 +1,69 @@
+# Dependencies
+node_modules/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime files
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage & reports
+coverage/
+.nyc_output/
+
+# Build outputs
+dist/
+build/
+tmp/
+temp/
+
+# Cache
+.cache/
+.eslintcache
+*.tsbuildinfo
+
+# Database/local data dumps
+*.sqlite
+*.sqlite3
+*.db
+*.sql
+
+# File uploads / generated media (if local)
+uploads/
+public/uploads/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE / editor
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# Test artifacts
+junit.xml
+playwright-report/
+test-results/
+
+# Tooling
+.vercel/
+.turbo/
+
+# Keep this if ever generated
+package-lock-backup.json

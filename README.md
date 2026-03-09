@@ -40,8 +40,13 @@ backend/
       env.js
       db.js
       logger.js
+    constants/
+      roles.js
+    routes/
+      index.js
     modules/
       auth/
+      dashboard/
       users/
       cms/
       academics/
@@ -106,6 +111,24 @@ Roles:
 - `school`: school dashboard + school-level updates
 - `staff` / `faculty`: workflow actions based on permissions
 - `super_admin`: full CRUD, approvals, reports, user management
+
+### Protected Dashboard Routes (Mandatory)
+The following endpoints are protected and **cannot** be accessed until login is complete and role token is valid:
+- `GET /api/dashboard/admin` → only `super_admin`
+- `GET /api/dashboard/school` → only `school`
+- `GET /api/dashboard/faculty` → only `faculty`
+
+Authentication flow:
+- Login: `POST /api/auth/login`
+- Refresh: `POST /api/auth/refresh`
+- Logout: `POST /api/auth/logout`
+- Profile: `GET /api/auth/me`
+
+Security enforcement:
+- Middleware chain: `authenticate` → `authorize(role)`
+- Unauthorized token: `401`
+- Role mismatch: `403`
+- Auth endpoints have stricter rate limiting
 
 ---
 
@@ -512,7 +535,7 @@ npx prisma init
 ---
 
 ## Notes
-- Keep all APIs under `/api/v1`.
+- Keep all APIs under `/api`.
 - Enforce request validation for every write endpoint.
 - Implement audit logging for every state transition and admin write operation.
 - Prefer idempotent job design for cron-based automations.
