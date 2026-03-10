@@ -1849,3 +1849,93 @@ With this combined documentation, team members can:
 - Follow consistent API contracts.
 - Maintain security and quality across releases.
 
+---
+
+## 36) PostgreSQL Integration (Implemented in Code)
+
+PostgreSQL connection is now configured in application code using environment variables.
+
+### 36.1 What is implemented
+- `src/config/env.js`
+  - Added `DATABASE_URL` support.
+  - Added `DB_SSL_ENABLED` support.
+- `src/config/db.js`
+  - Uses `pg` pool.
+  - Validates `DATABASE_URL` is present.
+  - Runs startup health check query (`SELECT 1`).
+  - Exposes reusable helpers: `query`, `getDbPool`, `closeDb`.
+- `.env.example`
+  - Added DB configuration template.
+- `src/db/schema.sql`
+  - Added relational schema with foreign keys, constraints, and indexes.
+
+### 36.2 Important security rule
+- Do not hardcode DB URL in source files.
+- Keep actual DB URL only in local/secure `.env`.
+
+### 36.3 `.env` configuration example
+```env
+DATABASE_URL=postgresql://<db_user>:<db_password>@<db_host>/<db_name>?sslmode=require&channel_binding=require
+DB_SSL_ENABLED=true
+```
+
+### 36.4 Apply schema to PostgreSQL
+
+Use `psql` command from project root:
+
+```bash
+psql "$DATABASE_URL" -f src/db/schema.sql
+```
+
+If `DATABASE_URL` is inside `.env`, export it first in terminal:
+
+```bash
+export $(grep -v '^#' .env | xargs)
+psql "$DATABASE_URL" -f src/db/schema.sql
+```
+
+### 36.5 Relation map (core entities)
+
+```mermaid
+erDiagram
+    roles ||--o{ users : assigned_to
+    users ||--|| user_profiles : has
+    schools ||--o{ departments : contains
+    departments ||--o{ programs : offers
+    programs ||--o{ courses : includes
+    users ||--o{ faculty_profiles : maps
+    departments ||--o{ faculty_profiles : belongs_to
+    faculty_profiles ||--o{ faculty_publications : writes
+
+    admission_cycles ||--o{ admission_programs : opens
+    programs ||--o{ admission_programs : listed_as
+    admission_programs ||--o{ applications : receives
+    users ||--o{ applications : submits
+    applications ||--o{ application_documents : includes
+    applications ||--o{ application_status_history : tracks
+
+    facilities ||--o{ facility_pricing_rules : priced_by
+    facilities ||--o{ booking_requests : booked_for
+    users ||--o{ booking_requests : requests
+
+    departments ||--o{ job_posts : publishes
+    job_posts ||--o{ job_applications : receives
+
+    users ||--o{ complaints : raises
+    complaints ||--o{ complaint_comments : contains
+
+    clubs ||--o{ club_memberships : has
+    users ||--o{ club_memberships : joins
+
+    users ||--o{ notifications : receives
+    users ||--o{ audit_logs : acts
+```
+
+### 36.6 Schema design highlights
+- All major tables use UUID primary keys.
+- Foreign keys are added for referential integrity.
+- Business constraints are defined with unique keys and checks.
+- Frequently filtered columns are indexed.
+- Roles are seeded (`super_admin`, `school`, `faculty`, `staff`).
+
+

@@ -40,6 +40,7 @@ temp/
 *.sqlite3
 *.db
 *.sql
+!src/db/*.sql
 
 # File uploads / generated media (if local)
 uploads/
