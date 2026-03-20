@@ -1,3 +1,4 @@
+
 const { Pool } = require('pg');
 const env = require('./env');
 const { logInfo, logError } = require('./logger');
@@ -50,9 +51,11 @@ const closeDb = async () => {
     await pool.end();
     pool = undefined;
   }
+
 };
 
 module.exports = {
+  db,
   connectDb,
   getDbPool,
   query,
