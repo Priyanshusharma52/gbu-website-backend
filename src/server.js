@@ -1,7 +1,10 @@
-const app = require('./app');
-const env = require('./config/env');
-const { connectDb } = require('./config/db');
-const { logInfo, logError } = require('./config/logger');
+const app = require("./app");
+const env = require("./config/env");
+const { connectDb } = require("./config/db");
+const { logInfo, logError } = require("./config/logger");
+// // const bookingRoutes = require("./modules/booking");
+// const bookingRoutes = require("./modules/booking");
+// app.use("/api/bookings", bookingRoutes);
 
 const startServer = async () => {
   try {
@@ -14,7 +17,7 @@ const startServer = async () => {
       });
     });
   } catch (error) {
-    logError('Failed to start server', {
+    logError("Failed to start server", {
       error: error.message,
       stack: error.stack,
     });
