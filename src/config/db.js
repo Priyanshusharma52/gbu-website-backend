@@ -55,7 +55,10 @@ const closeDb = async () => {
 };
 
 module.exports = {
-  db,
+  // Legacy compatibility for modules that still call db.query(...).
+  db: {
+    query,
+  },
   connectDb,
   getDbPool,
   query,
