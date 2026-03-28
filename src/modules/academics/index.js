@@ -1,42 +1,127 @@
 const express = require("express");
-const { db } = require("../../config/db");
+const { query } = require("../../config/db");
+const { successResponse, errorResponse } = require("../../utils/response");
 
 const router = express.Router();
-console.log("Academic router loaded");
 
-router.get("/", (req, res) => {
-  console.log("TEST ROUTE HIT");
-  res.send("Academic route working");
+const mapSchoolRow = (row) => ({
+  id: row.id,
+  code: row.code,
+  name: row.name,
+  slug: row.slug,
+  overview: row.overview,
+  isActive: row.is_active,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+  departmentCount: Number(row.department_count || 0),
 });
-// router.get("/schools", (req, res) => {
-//   const query = "SELECT * FROM schools";
 
-//   db.query(query, (err, result) => {
-//     if (err) {
-//       console.log(err);
-//       return res.status(500).json({ error: "Database error" });
-//     }
+router.get("/schools", async (req, res) => {
+  try {
+    const schoolsResult = await query(
+      `
+      SELECT
+        s.id,
+        s.code,
+        s.name,
+        s.slug,
+        s.overview,
+        s.is_active,
+        s.created_at,
+        s.updated_at,
+        COUNT(d.id) AS department_count
+      FROM schools s
+      LEFT JOIN departments d ON d.school_id = s.id
+      GROUP BY s.id
+      ORDER BY s.name ASC
+      `,
+    );
 
-//     res.json(result);
-//   });
-// });
-router.get("/schools", (req, res) => {
-  const query = "SELECT * FROM schools";
+    return successResponse(
+      res,
+      "Schools fetched successfully",
+      schoolsResult.rows.map(mapSchoolRow),
+    );
+  } catch (error) {
+    return errorResponse(
+      res,
+      "Failed to fetch schools",
+      [{ field: "schools", message: error.message }],
+      500,
+    );
+  }
+});
 
-  db.query(query, (err, result) => {
-    if (err) {
-      console.log(err);
-      return res.status(500).json({ error: "Database error" });
+router.get("/schools/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const schoolResult = await query(
+      `
+      SELECT
+        s.id,
+        s.code,
+        s.name,
+        s.slug,
+        s.overview,
+        s.is_active,
+        s.created_at,
+        s.updated_at,
+        COUNT(d.id) AS department_count
+      FROM schools s
+      LEFT JOIN departments d ON d.school_id = s.id
+      WHERE s.id = $1
+      GROUP BY s.id
+      `,
+      [id],
+    );
+
+    if (!schoolResult.rows.length) {
+      return errorResponse(
+        res,
+        "School not found",
+        [{ field: "id", message: "No school found for the provided id" }],
+        404,
+      );
     }
 
-    // JSON parse
-    const schools = result.map((school) => ({
-      ...school,
-      features: JSON.parse(school.features),
-    }));
+    const departmentsResult = await query(
+      `
+      SELECT
+        id,
+        code,
+        name,
+        slug,
+        about,
+        is_active
+      FROM departments
+      WHERE school_id = $1
+      ORDER BY name ASC
+      `,
+      [id],
+    );
 
-    res.json(schools);
-  });
+    // Frontend integration note: keep school + nested department list in one payload
+    // so department listing pages can render without making an immediate second call.
+    return successResponse(res, "School fetched successfully", {
+      ...mapSchoolRow(schoolResult.rows[0]),
+      departments: departmentsResult.rows.map((department) => ({
+        id: department.id,
+        code: department.code,
+        name: department.name,
+        slug: department.slug,
+        about: department.about,
+        isActive: department.is_active,
+      })),
+    });
+  } catch (error) {
+    return errorResponse(
+      res,
+      "Failed to fetch school details",
+      [{ field: "school", message: error.message }],
+      500,
+    );
+  }
 });
-module.exports = router;
+
 module.exports = router;

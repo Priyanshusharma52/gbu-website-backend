@@ -4,7 +4,10 @@ const dashboardRoutes = require("../modules/dashboard/dashboard.routes");
 const { successResponse } = require("../utils/response");
 const bookingRoutes = require("../modules/booking");
 const academicRoutes = require("../modules/academics");
+const departmentRoutes = require("../modules/departments");
+const programRoutes = require("../modules/programs");
 const router = express.Router();
+const v1Router = express.Router();
 
 router.get("/health", (req, res) => {
   return successResponse(res, "Service is healthy", {
@@ -18,4 +21,10 @@ router.use("/dashboard", dashboardRoutes);
 
 router.use("/bookings", bookingRoutes);
 router.use("/academics", academicRoutes);
+
+// Versioned API surface used by frontend integration.
+v1Router.use("/", academicRoutes);
+v1Router.use("/", departmentRoutes);
+v1Router.use("/", programRoutes);
+router.use("/v1", v1Router);
 module.exports = router;
