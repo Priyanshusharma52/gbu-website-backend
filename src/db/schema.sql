@@ -1,1024 +1,146 @@
+-- =====================================
+-- CREATE DATABASE
+-- =====================================
+-- Run once manually from postgres DB in pgAdmin/psql:
+-- CREATE DATABASE gbu;
+-- Then connect to gbu database and run this file.
+
 BEGIN;
 
-  CREATE EXTENSION
-  IF NOT EXISTS pgcrypto;
+-- =====================================
+-- DROP ALL EXISTING TABLES (DESTRUCTIVE)
+-- =====================================
+DO $$
+DECLARE
+  r RECORD;
+BEGIN
+  FOR r IN
+    SELECT tablename
+    FROM pg_tables
+    WHERE schemaname = 'public'
+  LOOP
+    EXECUTE format('DROP TABLE IF EXISTS public.%I CASCADE', r.tablename);
+  END LOOP;
+END $$;
 
-CREATE TABLE
-IF NOT EXISTS roles
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  code VARCHAR
-(50) NOT NULL UNIQUE,
-  name VARCHAR
-(100) NOT NULL,
-  description TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE TABLE
-IF NOT EXISTS users
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  role_id UUID NOT NULL REFERENCES roles
-(id),
-  name VARCHAR
-(150) NOT NULL,
-  email VARCHAR
-(255) NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  phone VARCHAR
-(20),
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  last_login_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE TABLE
-IF NOT EXISTS user_profiles
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  user_id UUID NOT NULL UNIQUE REFERENCES users
-(id) ON
-DELETE CASCADE,
-  employee_code VARCHAR(50),
-  designation VARCHAR
-(120),
-  bio TEXT,
-  profile_image_url TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE TABLE
-IF NOT EXISTS schools
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  code VARCHAR
-(50) NOT NULL UNIQUE,
-  name VARCHAR
-(200) NOT NULL UNIQUE,
-  slug VARCHAR
-(200) NOT NULL UNIQUE,
-  overview TEXT,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_by UUID REFERENCES users
-(id),
-  updated_by UUID REFERENCES users
-(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE TABLE
-IF NOT EXISTS departments
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  school_id UUID NOT NULL REFERENCES schools
-(id) ON
-DELETE RESTRICT,
-  code VARCHAR(50)
-NOT NULL,
-  name VARCHAR
-(200) NOT NULL,
-  slug VARCHAR
-(200) NOT NULL UNIQUE,
-  about TEXT,
-  contact_email VARCHAR
-(255),
-  contact_phone VARCHAR
-(20),
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_by UUID REFERENCES users
-(id),
-  updated_by UUID REFERENCES users
-(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  UNIQUE
-(school_id, code),
-  UNIQUE
-(school_id, name)
-);
-
-CREATE TABLE
-IF NOT EXISTS programs
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  department_id UUID NOT NULL REFERENCES departments
-(id) ON
-DELETE RESTRICT,
-  code VARCHAR(50)
-NOT NULL,
-  name VARCHAR
-(200) NOT NULL,
-  level VARCHAR
-(50) NOT NULL,
-  duration_years INTEGER NOT NULL,
-  intake_capacity INTEGER,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  UNIQUE
-(department_id, code)
-);
-
-CREATE TABLE
-IF NOT EXISTS courses
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  program_id UUID NOT NULL REFERENCES programs
-(id) ON
-DELETE CASCADE,
-  code VARCHAR(50)
-NOT NULL,
-  name VARCHAR
-(250) NOT NULL,
-  credits NUMERIC
-(4,2) NOT NULL,
-  semester INTEGER,
-  syllabus_version VARCHAR
-(20) NOT NULL DEFAULT '1.0',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  UNIQUE
-(program_id, code)
-);
-
-CREATE TABLE
-IF NOT EXISTS course_outcomes
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  course_id UUID NOT NULL REFERENCES courses
-(id) ON
-DELETE CASCADE,
-  outcome_code VARCHAR(50)
-NOT NULL,
-  outcome_text TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  UNIQUE
-(course_id, outcome_code)
-);
-
-CREATE TABLE
-IF NOT EXISTS department_contacts
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  department_id UUID NOT NULL REFERENCES departments
-(id) ON
-DELETE CASCADE,
-  name VARCHAR(200)
-NOT NULL,
-  designation VARCHAR
-(150),
-  email VARCHAR
-(255),
-  phone VARCHAR
-(20),
-  display_order INTEGER NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE TABLE
-IF NOT EXISTS department_notices
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  department_id UUID NOT NULL REFERENCES departments
-(id) ON
-DELETE CASCADE,
-  title VARCHAR(250)
-NOT NULL,
+-- =====================================
+-- TABLES
+-- =====================================
+CREATE TABLE notices (
+  id INT PRIMARY KEY,
+  title VARCHAR(255),
   content TEXT,
-  notice_type VARCHAR
-(50),
-  published_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
+  date DATE,
+  type VARCHAR(50),
+  priority VARCHAR(20),
+  views INT DEFAULT 0,
+  is_new BOOLEAN,
+  pdf_url VARCHAR(255)
 );
 
-CREATE TABLE
-IF NOT EXISTS labs
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  department_id UUID NOT NULL REFERENCES departments
-(id) ON
-DELETE CASCADE,
-  name VARCHAR(200)
-NOT NULL,
-  description TEXT,
-  location VARCHAR
-(250),
-  incharge_name VARCHAR
-(200),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE TABLE
-IF NOT EXISTS boards_of_study
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  department_id UUID NOT NULL REFERENCES departments
-(id) ON
-DELETE CASCADE,
-  title VARCHAR(200)
-NOT NULL,
-  member_name VARCHAR
-(200) NOT NULL,
-  member_role VARCHAR
-(120),
-  tenure_start DATE,
-  tenure_end DATE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  CHECK
-(tenure_start IS NULL OR tenure_end IS NULL OR tenure_start <= tenure_end)
-);
-
-CREATE TABLE
-IF NOT EXISTS faculty_profiles
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  user_id UUID NOT NULL UNIQUE REFERENCES users
-(id) ON
-DELETE CASCADE,
-  department_id UUID
-REFERENCES departments
-(id) ON
-DELETE
-SET NULL
-,
-  qualification TEXT,
-  specialization TEXT,
-  research_interests TEXT,
-  office_location VARCHAR
-(150),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE TABLE
-IF NOT EXISTS faculty_publications
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  faculty_profile_id UUID NOT NULL REFERENCES faculty_profiles
-(id) ON
-DELETE CASCADE,
-  title TEXT
-NOT NULL,
-  publication_year INTEGER NOT NULL,
-  doi VARCHAR
-(255),
-  publication_url TEXT,
-  indexed_in VARCHAR
-(150),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE TABLE
-IF NOT EXISTS admission_cycles
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  name VARCHAR
-(150) NOT NULL UNIQUE,
-  starts_on DATE NOT NULL,
-  ends_on DATE NOT NULL,
-  is_active BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  CHECK
-(starts_on <= ends_on)
-);
-
-CREATE TABLE
-IF NOT EXISTS admission_programs
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  admission_cycle_id UUID NOT NULL REFERENCES admission_cycles
-(id) ON
-DELETE CASCADE,
-  program_id UUID
-NOT NULL REFERENCES programs
-(id) ON
-DELETE RESTRICT,
-  seats_total INTEGER
-NOT NULL,
-  eligibility_rules JSONB,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  UNIQUE
-(admission_cycle_id, program_id)
-);
-
-CREATE TABLE
-IF NOT EXISTS applications
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  applicant_user_id UUID NOT NULL REFERENCES users
-(id) ON
-DELETE RESTRICT,
-  admission_program_id UUID
-NOT NULL REFERENCES admission_programs
-(id) ON
-DELETE RESTRICT,
+CREATE TABLE news (
+  id INT PRIMARY KEY,
+  title VARCHAR(255),
+  excerpt TEXT,
+  content TEXT,
+  date DATE,
+  author VARCHAR(100),
+  department VARCHAR(100),
+  tags TEXT,
+  category VARCHAR(100),
+  priority VARCHAR(20),
+  views INT,
+  likes INT,
+  image_url TEXT,
+  featured BOOLEAN,
   status VARCHAR(50)
-NOT NULL DEFAULT 'submitted',
-  category VARCHAR
-(50),
-  submitted_at TIMESTAMPTZ,
-  reviewed_by UUID REFERENCES users
-(id),
-  reviewed_at TIMESTAMPTZ,
-  remarks TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  UNIQUE
-(applicant_user_id, admission_program_id)
 );
 
-CREATE TABLE
-IF NOT EXISTS application_documents
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  application_id UUID NOT NULL REFERENCES applications
-(id) ON
-DELETE CASCADE,
-  document_type VARCHAR(100)
-NOT NULL,
-  document_url TEXT NOT NULL,
-  verification_status VARCHAR
-(50) NOT NULL DEFAULT 'pending',
-  verified_by UUID REFERENCES users
-(id),
-  verified_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE TABLE
-IF NOT EXISTS application_status_history
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  application_id UUID NOT NULL REFERENCES applications
-(id) ON
-DELETE CASCADE,
-  previous_status VARCHAR(50),
-  new_status VARCHAR
-(50) NOT NULL,
-  changed_by UUID REFERENCES users
-(id),
-  changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  reason TEXT
-);
-
-CREATE TABLE
-IF NOT EXISTS facilities
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  name VARCHAR
-(200) NOT NULL,
-  code VARCHAR
-(50) NOT NULL UNIQUE,
-  location VARCHAR
-(250),
-  capacity INTEGER,
+CREATE TABLE events (
+  id INT PRIMARY KEY,
+  title VARCHAR(255),
+  organizer VARCHAR(255),
+  date DATE,
+  time VARCHAR(20),
+  location VARCHAR(255),
+  type VARCHAR(50),
   description TEXT,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
+  image TEXT,
+  attendees INT,
+  status VARCHAR(20),
+  price VARCHAR(20),
+  tags TEXT,
+  year VARCHAR(10)
 );
 
-CREATE TABLE
-IF NOT EXISTS facility_pricing_rules
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  facility_id UUID NOT NULL REFERENCES facilities
-(id) ON
-DELETE CASCADE,
-  requester_role_code VARCHAR(50)
-NOT NULL,
-  event_type VARCHAR
-(100) NOT NULL,
-  base_price NUMERIC
-(12,2) NOT NULL,
-  per_hour_price NUMERIC
-(12,2),
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  UNIQUE
-(facility_id, requester_role_code, event_type)
-);
+-- =====================================
+-- INSERT NOTICES (15)
+-- =====================================
+INSERT INTO notices VALUES
+(1,'End Semester Examination Schedule - June 2025','The final schedule for End Semester Examinations (June 2025) is now available.','2025-05-25','Exam','high',1245,true,'https://gbu.ac.in/notices/exam-schedule-june-2025.pdf'),
+(2,'Extension of Fee Payment Deadline - Summer Semester','Fee payment extended to 5 June 2025.','2025-05-20','Fee','medium',892,false,'https://gbu.ac.in/notices/fee-extension-summer-2025.pdf'),
+(3,'Annual Convocation 2025 Notification','Convocation will be held on 30 July.','2025-05-15','Event','high',2156,true,'https://gbu.ac.in/notices/convocation-2025-guidelines.pdf'),
+(4,'Academic Calendar 2025-26 Released','Academic Calendar published.','2025-05-10','Academic','medium',1678,false,'https://gbu.ac.in/notices/academic-calendar-2025-26.pdf'),
+(5,'Notice Regarding Monsoon Break','Monsoon Break notice.','2025-05-12','General','low',743,false,''),
+(6,'Mid-Term Examination Guidelines','Mid term guidelines.','2025-06-01','Exam','high',1834,true,'https://gbu.ac.in/notices/midterm-guidelines-july-2025.pdf'),
+(7,'Scholarship Renewal Notice','Scholarship renewal notice.','2025-06-05','General','medium',567,false,'https://gbu.ac.in/notices/scholarship-renewal-2025.pdf'),
+(8,'Workshop on Cybersecurity','Cybersecurity workshop.','2025-06-10','Event','medium',1289,true,'https://gbu.ac.in/notices/cybersecurity-workshop-2025.pdf'),
+(9,'Hostel Allotment Notice','Hostel allotment notice.','2025-06-15','General','high',2341,true,'https://gbu.ac.in/notices/hostel-allotment-2025.pdf'),
+(10,'Holiday Notice Raksha Bandhan','Holiday notice.','2025-06-18','General','low',456,false,''),
+(11,'Research Paper Guidelines','Research guidelines.','2025-06-20','Academic','medium',789,true,'https://gbu.ac.in/notices/research-guidelines-2025.pdf'),
+(12,'Sports Complex Maintenance','Maintenance notice.','2025-06-22','General','low',234,false,''),
+(13,'Library Extended Hours','Library notice.','2025-06-25','Academic','medium',1567,true,'https://gbu.ac.in/notices/library-extended-hours.pdf'),
+(14,'Career Fair 2025','Career fair notice.','2025-06-28','Event','high',3456,true,'https://gbu.ac.in/notices/career-fair-2025.pdf'),
+(15,'New Course Offerings','New courses notice.','2025-06-30','Academic','medium',987,true,'https://gbu.ac.in/notices/new-courses-winter-2025.pdf');
 
-CREATE TABLE
-IF NOT EXISTS booking_requests
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  facility_id UUID NOT NULL REFERENCES facilities
-(id) ON
-DELETE RESTRICT,
-  requester_user_id UUID
-NOT NULL REFERENCES users
-(id) ON
-DELETE RESTRICT,
-  event_name VARCHAR(250)
-NOT NULL,
-  event_type VARCHAR
-(100) NOT NULL,
-  from_at TIMESTAMPTZ NOT NULL,
-  to_at TIMESTAMPTZ NOT NULL,
-  status VARCHAR
-(50) NOT NULL DEFAULT 'pending',
-  approved_by UUID REFERENCES users
-(id),
-  approved_at TIMESTAMPTZ,
-  rejection_reason TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  CHECK
-(from_at < to_at)
-);
+-- =====================================
+-- INSERT NEWS (15)
+-- =====================================
+INSERT INTO news VALUES
+(1,'GBU AI Center','AI research center launched','AI ML research center','2024-06-20','Dr. Rajesh Kumar','Research Cell','AI,Research','Research','high',2847,156,'img1.jpg',true,'published'),
+(2,'Convocation 2024','Degrees awarded','Convocation ceremony','2024-05-30','Prof. Meera Sharma','Academic Affairs','Convocation','Academic','high',1923,89,'img2.jpg',true,'published'),
+(3,'Innovation Hackathon','Students won hackathon','Smart traffic system','2024-05-15','Dr. Amit Singh','Innovation Cell','Hackathon','Student Achievement','medium',1567,134,'img3.jpg',false,'published'),
+(4,'Digital Library','Library upgraded','Digital resources added','2024-04-28','Priya Gupta','Library','Library','Infrastructure','medium',987,67,'img4.jpg',false,'published'),
+(5,'Sports Championship','GBU won medals','Sports championship','2024-04-10','Vikram Singh','Sports','Sports','Sports','medium',1432,98,'img5.jpg',false,'published'),
+(6,'Green Campus','Tree plantation','Green campus drive','2024-04-05','Sunita Verma','Environment','Green','Environment','low',756,145,'img6.jpg',false,'published'),
+(7,'Cultural Fest','Abhivyakti fest','Cultural fest','2024-03-20','Kavita Mishra','Cultural','Fest','Cultural','medium',2156,203,'img7.jpg',false,'published'),
+(8,'Blood Donation Drive','NSS event','Blood donation','2024-03-15','Ravi Kumar','NSS','Social','Social','medium',1089,87,'img8.jpg',false,'published'),
+(9,'Programming Competition','Coding event','Competition','2024-02-25','Ankit Sharma','CSE','Coding','Technology','medium',1678,156,'img9.jpg',false,'published'),
+(10,'International Collaboration','University collaboration','Exchange program','2024-02-10','Neha Agarwal','International','Collaboration','International','high',934,76,'img10.jpg',false,'published'),
+(11,'Wellness Week','Fitness event','Mental health week','2024-01-25','Seema Yadav','Student Welfare','Wellness','Wellness','low',1234,112,'img11.jpg',false,'published'),
+(12,'Industry Expert Series','Career talk','Industry session','2024-01-15','Ritika Jain','Career','Career','Career','medium',1456,89,'img12.jpg',false,'published'),
+(13,'Placement Success','Placement record','Placement drive','2023-12-30','Manish Gupta','Placement','Jobs','Placements','high',3421,267,'img13.jpg',true,'published'),
+(14,'Creative Arts Workshop','Arts workshop','Photography','2023-12-15','Rohit Verma','Fine Arts','Arts','Arts','low',678,54,'img14.jpg',false,'published'),
+(15,'Educational Tour','Political science tour','Parliament visit','2023-12-05','Manoj Tiwari','Political Science','Tour','Education','low',543,42,'img15.jpg',false,'published');
 
-CREATE TABLE
-IF NOT EXISTS tenders
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  tender_no VARCHAR
-(100) NOT NULL UNIQUE,
-  title TEXT NOT NULL,
-  description TEXT,
-  published_on DATE NOT NULL,
-  closing_on DATE NOT NULL,
-  status VARCHAR
-(50) NOT NULL DEFAULT 'active',
-  created_by UUID REFERENCES users
-(id),
-  updated_by UUID REFERENCES users
-(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  CHECK
-(published_on <= closing_on)
-);
+-- =====================================
+-- INSERT EVENTS (18)
+-- =====================================
+INSERT INTO events VALUES
+(1,'Annual Research Conference 2025','Computer Science Department','2025-08-15','09:00','Main Auditorium','Conference','Research conference','img1.jpg',250,'upcoming','Free','Research','2025'),
+(2,'Web Development Workshop','IT Department','2025-07-25','14:00','Computer Lab 1','Workshop','Web development','img2.jpg',50,'upcoming','500','Web','2025'),
+(3,'AI Symposium','Research Center','2025-09-10','10:00','Science Block','Symposium','AI symposium','img3.jpg',200,'upcoming','1000','AI','2025'),
+(4,'Innovation Fair','Innovation Cell','2025-08-05','11:00','Campus Ground','Fair','Innovation fair','img4.jpg',300,'upcoming','Free','Innovation','2025'),
+(5,'Cybersecurity Workshop','Security Team','2025-07-30','13:00','Tech Center','Workshop','Security workshop','img5.jpg',75,'upcoming','750','Security','2025'),
+(6,'Data Science Bootcamp','Analytics Department','2025-08-20','09:30','Data Lab','Bootcamp','Data science','img6.jpg',40,'upcoming','2000','Data','2025'),
+(7,'Blockchain Seminar','Fintech Club','2025-09-15','15:00','Seminar Hall','Seminar','Blockchain seminar','img7.jpg',120,'upcoming','300','Blockchain','2025'),
+(8,'Mobile App Workshop','Mobile Dev Team','2025-08-12','10:30','Mobile Lab','Workshop','Mobile apps','img8.jpg',60,'upcoming','800','Mobile','2025'),
+(9,'Cloud Conference','Cloud Team','2025-09-25','09:00','Convention Center','Conference','Cloud conference','img9.jpg',180,'upcoming','1200','Cloud','2025'),
+(10,'UI UX Masterclass','Design Studio','2025-07-28','14:30','Design Lab','Masterclass','UI UX','img10.jpg',35,'upcoming','1500','Design','2025'),
+(11,'DevOps Summit','Operations Team','2025-08-18','11:30','Tech Hub','Summit','DevOps','img11.jpg',90,'upcoming','900','DevOps','2025'),
+(12,'Digital Marketing Workshop','Marketing Department','2025-09-05','16:00','Media Center','Workshop','Marketing','img12.jpg',65,'upcoming','600','Marketing','2025'),
+(13,'React Conference 2024','Frontend Guild','2024-12-15','10:00','Tech Auditorium','Conference','React conference','img13.jpg',300,'past','800','React','2024'),
+(14,'Python Bootcamp','Programming Club','2025-01-20','09:00','Computer Center','Bootcamp','Python','img14.jpg',80,'past','1200','Python','2025'),
+(15,'Startup Pitch','Entrepreneurship Cell','2025-02-28','14:00','Main Hall','Competition','Startup pitch','img15.jpg',150,'past','Free','Startup','2025'),
+(16,'Machine Learning Workshop','AI Lab','2025-03-10','11:00','Research Center','Workshop','ML workshop','img16.jpg',60,'past','1000','ML','2025'),
+(17,'Database Seminar','Database Team','2025-04-15','15:30','Lecture Hall 3','Seminar','Database','img17.jpg',90,'past','400','Database','2025'),
+(18,'Agile Workshop','PM Office','2025-05-20','09:30','Training Room 2','Workshop','Agile','img18.jpg',45,'past','650','Agile','2025');
 
-CREATE TABLE
-IF NOT EXISTS tender_documents
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  tender_id UUID NOT NULL REFERENCES tenders
-(id) ON
-DELETE CASCADE,
-  version_no INTEGER
-NOT NULL DEFAULT 1,
-  file_url TEXT NOT NULL,
-  document_type VARCHAR
-(100),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  UNIQUE
-(tender_id, version_no)
-);
-
-CREATE TABLE
-IF NOT EXISTS job_posts
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  title VARCHAR
-(250) NOT NULL,
-  department_id UUID REFERENCES departments
-(id) ON
-DELETE
-SET NULL
-,
-  employment_type VARCHAR
-(100),
-  experience_required VARCHAR
-(150),
-  application_deadline DATE,
-  status VARCHAR
-(50) NOT NULL DEFAULT 'open',
-  created_by UUID REFERENCES users
-(id),
-  updated_by UUID REFERENCES users
-(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE TABLE
-IF NOT EXISTS job_applications
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  job_post_id UUID NOT NULL REFERENCES job_posts
-(id) ON
-DELETE CASCADE,
-  applicant_user_id UUID
-REFERENCES users
-(id) ON
-DELETE
-SET NULL
-,
-  applicant_name VARCHAR
-(200) NOT NULL,
-  applicant_email VARCHAR
-(255) NOT NULL,
-  current_status VARCHAR
-(50) NOT NULL DEFAULT 'submitted',
-  resume_url TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE TABLE
-IF NOT EXISTS complaints
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  raised_by UUID NOT NULL REFERENCES users
-(id) ON
-DELETE RESTRICT,
-  category VARCHAR(100)
-NOT NULL,
-  subject VARCHAR
-(250) NOT NULL,
-  description TEXT NOT NULL,
-  priority VARCHAR
-(30) NOT NULL DEFAULT 'medium',
-  status VARCHAR
-(50) NOT NULL DEFAULT 'open',
-  assigned_to UUID REFERENCES users
-(id),
-  due_at TIMESTAMPTZ,
-  resolved_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE TABLE
-IF NOT EXISTS complaint_comments
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  complaint_id UUID NOT NULL REFERENCES complaints
-(id) ON
-DELETE CASCADE,
-  commented_by UUID
-NOT NULL REFERENCES users
-(id),
-  comment_text TEXT NOT NULL,
-  is_internal BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE TABLE
-IF NOT EXISTS contact_submissions
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  name VARCHAR
-(150) NOT NULL,
-  email VARCHAR
-(255) NOT NULL,
-  phone VARCHAR
-(20),
-  subject VARCHAR
-(250),
-  message TEXT NOT NULL,
-  status VARCHAR
-(50) NOT NULL DEFAULT 'new',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE TABLE
-IF NOT EXISTS clubs
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  name VARCHAR
-(200) NOT NULL UNIQUE,
-  slug VARCHAR
-(200) NOT NULL UNIQUE,
-  description TEXT,
-  faculty_coordinator_id UUID REFERENCES users
-(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE TABLE
-IF NOT EXISTS club_memberships
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  club_id UUID NOT NULL REFERENCES clubs
-(id) ON
-DELETE CASCADE,
-  user_id UUID
-NOT NULL REFERENCES users
-(id) ON
-DELETE CASCADE,
-  membership_status VARCHAR(50)
-NOT NULL DEFAULT 'active',
-  joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  UNIQUE
-(club_id, user_id)
-);
-
-CREATE TABLE
-IF NOT EXISTS notifications
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  user_id UUID REFERENCES users
-(id) ON
-DELETE CASCADE,
-  title VARCHAR(250)
-NOT NULL,
-  message TEXT NOT NULL,
-  channel VARCHAR
-(50) NOT NULL DEFAULT 'in_app',
-  is_read BOOLEAN NOT NULL DEFAULT FALSE,
-  sent_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE TABLE
-IF NOT EXISTS audit_logs
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  actor_user_id UUID REFERENCES users
-(id),
-  action VARCHAR
-(120) NOT NULL,
-  resource_type VARCHAR
-(120) NOT NULL,
-  resource_id UUID,
-  request_id VARCHAR
-(120),
-  metadata JSONB,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE TABLE
-IF NOT EXISTS announcements
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  title VARCHAR
-(250) NOT NULL,
-  slug VARCHAR
-(250) NOT NULL UNIQUE,
-  summary TEXT,
-  content TEXT,
-  category VARCHAR
-(100),
-  tags TEXT[] NOT NULL DEFAULT '{}',
-  cover_image_url TEXT,
-  is_published BOOLEAN NOT NULL DEFAULT TRUE,
-  published_at TIMESTAMPTZ,
-  created_by UUID REFERENCES users
-(id),
-  updated_by UUID REFERENCES users
-(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE TABLE
-IF NOT EXISTS news_items
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  title VARCHAR
-(250) NOT NULL,
-  slug VARCHAR
-(250) NOT NULL UNIQUE,
-  summary TEXT,
-  content TEXT,
-  category VARCHAR
-(100),
-  tags TEXT[] NOT NULL DEFAULT '{}',
-  source_url TEXT,
-  cover_image_url TEXT,
-  is_published BOOLEAN NOT NULL DEFAULT TRUE,
-  published_at TIMESTAMPTZ,
-  created_by UUID REFERENCES users
-(id),
-  updated_by UUID REFERENCES users
-(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE TABLE
-IF NOT EXISTS events
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  title VARCHAR
-(250) NOT NULL,
-  slug VARCHAR
-(250) NOT NULL UNIQUE,
-  summary TEXT,
-  description TEXT,
-  category VARCHAR
-(100),
-  venue VARCHAR
-(250),
-  organizer VARCHAR
-(200),
-  starts_at TIMESTAMPTZ NOT NULL,
-  ends_at TIMESTAMPTZ,
-  cover_image_url TEXT,
-  registration_url TEXT,
-  is_featured BOOLEAN NOT NULL DEFAULT FALSE,
-  is_published BOOLEAN NOT NULL DEFAULT TRUE,
-  published_at TIMESTAMPTZ,
-  created_by UUID REFERENCES users
-(id),
-  updated_by UUID REFERENCES users
-(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  CHECK
-(ends_at IS NULL OR starts_at <= ends_at)
-);
-
-CREATE TABLE
-IF NOT EXISTS event_tags
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  event_id UUID NOT NULL REFERENCES events
-(id) ON
-DELETE CASCADE,
-  tag VARCHAR(100)
-NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  UNIQUE
-(event_id, tag)
-);
-
-CREATE TABLE
-IF NOT EXISTS media_gallery_items
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  event_id UUID REFERENCES events
-(id) ON
-DELETE CASCADE,
-  title VARCHAR(250),
-  caption TEXT,
-  media_type VARCHAR
-(30) NOT NULL DEFAULT 'image',
-  file_url TEXT NOT NULL,
-  thumbnail_url TEXT,
-  display_order INTEGER NOT NULL DEFAULT 0,
-  created_by UUID REFERENCES users
-(id),
-  updated_by UUID REFERENCES users
-(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE TABLE
-IF NOT EXISTS newsletter_issues
-(
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid
-(),
-  title VARCHAR
-(250) NOT NULL,
-  issue_no VARCHAR
-(50) UNIQUE,
-  issue_date DATE NOT NULL,
-  summary TEXT,
-  content_html TEXT,
-  pdf_url TEXT,
-  cover_image_url TEXT,
-  is_published BOOLEAN NOT NULL DEFAULT TRUE,
-  published_at TIMESTAMPTZ,
-  created_by UUID REFERENCES users
-(id),
-  updated_by UUID REFERENCES users
-(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
-()
-);
-
-CREATE INDEX
-IF NOT EXISTS idx_users_role_id ON users
-(role_id);
-CREATE INDEX
-IF NOT EXISTS idx_departments_school_id ON departments
-(school_id);
-CREATE INDEX
-IF NOT EXISTS idx_programs_department_id ON programs
-(department_id);
-CREATE INDEX
-IF NOT EXISTS idx_courses_program_id ON courses
-(program_id);
-CREATE INDEX
-IF NOT EXISTS idx_course_outcomes_course_id ON course_outcomes
-(course_id);
-CREATE INDEX
-IF NOT EXISTS idx_department_contacts_department_id ON department_contacts
-(department_id);
-CREATE INDEX
-IF NOT EXISTS idx_department_notices_department_id ON department_notices
-(department_id);
-CREATE INDEX
-IF NOT EXISTS idx_labs_department_id ON labs
-(department_id);
-CREATE INDEX
-IF NOT EXISTS idx_boards_of_study_department_id ON boards_of_study
-(department_id);
-CREATE INDEX
-IF NOT EXISTS idx_faculty_profiles_department_id ON faculty_profiles
-(department_id);
-CREATE INDEX
-IF NOT EXISTS idx_applications_admission_program_id ON applications
-(admission_program_id);
-CREATE INDEX
-IF NOT EXISTS idx_applications_status ON applications
-(status);
-CREATE INDEX
-IF NOT EXISTS idx_booking_requests_facility_id ON booking_requests
-(facility_id);
-CREATE INDEX
-IF NOT EXISTS idx_booking_requests_status ON booking_requests
-(status);
-CREATE INDEX
-IF NOT EXISTS idx_tenders_status ON tenders
-(status);
-CREATE INDEX
-IF NOT EXISTS idx_job_posts_status ON job_posts
-(status);
-CREATE INDEX
-IF NOT EXISTS idx_complaints_status ON complaints
-(status);
-CREATE INDEX
-IF NOT EXISTS idx_complaints_assigned_to ON complaints
-(assigned_to);
-CREATE INDEX
-IF NOT EXISTS idx_notifications_user_id ON notifications
-(user_id);
-CREATE INDEX
-IF NOT EXISTS idx_audit_logs_actor_user_id ON audit_logs
-(actor_user_id);
-CREATE INDEX
-IF NOT EXISTS idx_announcements_published_at ON announcements
-(published_at);
-CREATE INDEX
-IF NOT EXISTS idx_announcements_category ON announcements
-(category);
-CREATE INDEX
-IF NOT EXISTS idx_announcements_tags ON announcements USING GIN
-(tags);
-CREATE INDEX
-IF NOT EXISTS idx_news_items_published_at ON news_items
-(published_at);
-CREATE INDEX
-IF NOT EXISTS idx_news_items_category ON news_items
-(category);
-CREATE INDEX
-IF NOT EXISTS idx_news_items_tags ON news_items USING GIN
-(tags);
-CREATE INDEX
-IF NOT EXISTS idx_events_starts_at ON events
-(starts_at);
-CREATE INDEX
-IF NOT EXISTS idx_events_category ON events
-(category);
-CREATE INDEX
-IF NOT EXISTS idx_events_is_published ON events
-(is_published);
-CREATE INDEX
-IF NOT EXISTS idx_event_tags_event_id ON event_tags
-(event_id);
-CREATE INDEX
-IF NOT EXISTS idx_event_tags_lower_tag ON event_tags
-(LOWER
-(tag));
-CREATE INDEX
-IF NOT EXISTS idx_media_gallery_items_event_id ON media_gallery_items
-(event_id);
-CREATE INDEX
-IF NOT EXISTS idx_newsletter_issues_issue_date ON newsletter_issues
-(issue_date);
-
-INSERT INTO roles
-  (code, name, description)
-VALUES
-  ('super_admin', 'Super Admin', 'Platform administrator with complete access'),
-  ('school', 'School', 'School-level management role'),
-  ('faculty', 'Faculty', 'Faculty member role'),
-  ('staff', 'Staff', 'Operational staff role')
-ON CONFLICT
-(code) DO NOTHING;
+-- =====================================
+-- CHECK DATA
+-- =====================================
+SELECT * FROM notices;
+SELECT * FROM news;
+SELECT * FROM events;
 
 COMMIT;
