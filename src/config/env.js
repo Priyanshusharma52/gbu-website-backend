@@ -3,9 +3,12 @@ const dotenv = require("dotenv");
 dotenv.config();
 
 const env = {
-
   nodeEnv: process.env.NODE_ENV || "development",
   port: Number(process.env.PORT) || 3000,
+  databaseUrl:
+    process.env.DATABASE_URL ||
+    "postgresql://postgres:postgres@localhost:5432/gbu_backend",
+  dbSslEnabled: String(process.env.DB_SSL_ENABLED || "false") === "true",
   jwtAccessSecret: process.env.JWT_ACCESS_SECRET || "change-me-access-secret",
   jwtRefreshSecret:
     process.env.JWT_REFRESH_SECRET || "change-me-refresh-secret",

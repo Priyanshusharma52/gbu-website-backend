@@ -750,6 +750,166 @@ IF NOT EXISTS audit_logs
 ()
 );
 
+CREATE TABLE
+IF NOT EXISTS announcements
+(
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid
+(),
+  title VARCHAR
+(250) NOT NULL,
+  slug VARCHAR
+(250) NOT NULL UNIQUE,
+  summary TEXT,
+  content TEXT,
+  category VARCHAR
+(100),
+  tags TEXT[] NOT NULL DEFAULT '{}',
+  cover_image_url TEXT,
+  is_published BOOLEAN NOT NULL DEFAULT TRUE,
+  published_at TIMESTAMPTZ,
+  created_by UUID REFERENCES users
+(id),
+  updated_by UUID REFERENCES users
+(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
+(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
+()
+);
+
+CREATE TABLE
+IF NOT EXISTS news_items
+(
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid
+(),
+  title VARCHAR
+(250) NOT NULL,
+  slug VARCHAR
+(250) NOT NULL UNIQUE,
+  summary TEXT,
+  content TEXT,
+  category VARCHAR
+(100),
+  tags TEXT[] NOT NULL DEFAULT '{}',
+  source_url TEXT,
+  cover_image_url TEXT,
+  is_published BOOLEAN NOT NULL DEFAULT TRUE,
+  published_at TIMESTAMPTZ,
+  created_by UUID REFERENCES users
+(id),
+  updated_by UUID REFERENCES users
+(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
+(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
+()
+);
+
+CREATE TABLE
+IF NOT EXISTS events
+(
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid
+(),
+  title VARCHAR
+(250) NOT NULL,
+  slug VARCHAR
+(250) NOT NULL UNIQUE,
+  summary TEXT,
+  description TEXT,
+  category VARCHAR
+(100),
+  venue VARCHAR
+(250),
+  organizer VARCHAR
+(200),
+  starts_at TIMESTAMPTZ NOT NULL,
+  ends_at TIMESTAMPTZ,
+  cover_image_url TEXT,
+  registration_url TEXT,
+  is_featured BOOLEAN NOT NULL DEFAULT FALSE,
+  is_published BOOLEAN NOT NULL DEFAULT TRUE,
+  published_at TIMESTAMPTZ,
+  created_by UUID REFERENCES users
+(id),
+  updated_by UUID REFERENCES users
+(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
+(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
+(),
+  CHECK
+(ends_at IS NULL OR starts_at <= ends_at)
+);
+
+CREATE TABLE
+IF NOT EXISTS event_tags
+(
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid
+(),
+  event_id UUID NOT NULL REFERENCES events
+(id) ON
+DELETE CASCADE,
+  tag VARCHAR(100)
+NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
+(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
+(),
+  UNIQUE
+(event_id, tag)
+);
+
+CREATE TABLE
+IF NOT EXISTS media_gallery_items
+(
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid
+(),
+  event_id UUID REFERENCES events
+(id) ON
+DELETE CASCADE,
+  title VARCHAR(250),
+  caption TEXT,
+  media_type VARCHAR
+(30) NOT NULL DEFAULT 'image',
+  file_url TEXT NOT NULL,
+  thumbnail_url TEXT,
+  display_order INTEGER NOT NULL DEFAULT 0,
+  created_by UUID REFERENCES users
+(id),
+  updated_by UUID REFERENCES users
+(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
+(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
+()
+);
+
+CREATE TABLE
+IF NOT EXISTS newsletter_issues
+(
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid
+(),
+  title VARCHAR
+(250) NOT NULL,
+  issue_no VARCHAR
+(50) UNIQUE,
+  issue_date DATE NOT NULL,
+  summary TEXT,
+  content_html TEXT,
+  pdf_url TEXT,
+  cover_image_url TEXT,
+  is_published BOOLEAN NOT NULL DEFAULT TRUE,
+  published_at TIMESTAMPTZ,
+  created_by UUID REFERENCES users
+(id),
+  updated_by UUID REFERENCES users
+(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW
+(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW
+()
+);
+
 CREATE INDEX
 IF NOT EXISTS idx_users_role_id ON users
 (role_id);
@@ -810,6 +970,46 @@ IF NOT EXISTS idx_notifications_user_id ON notifications
 CREATE INDEX
 IF NOT EXISTS idx_audit_logs_actor_user_id ON audit_logs
 (actor_user_id);
+CREATE INDEX
+IF NOT EXISTS idx_announcements_published_at ON announcements
+(published_at);
+CREATE INDEX
+IF NOT EXISTS idx_announcements_category ON announcements
+(category);
+CREATE INDEX
+IF NOT EXISTS idx_announcements_tags ON announcements USING GIN
+(tags);
+CREATE INDEX
+IF NOT EXISTS idx_news_items_published_at ON news_items
+(published_at);
+CREATE INDEX
+IF NOT EXISTS idx_news_items_category ON news_items
+(category);
+CREATE INDEX
+IF NOT EXISTS idx_news_items_tags ON news_items USING GIN
+(tags);
+CREATE INDEX
+IF NOT EXISTS idx_events_starts_at ON events
+(starts_at);
+CREATE INDEX
+IF NOT EXISTS idx_events_category ON events
+(category);
+CREATE INDEX
+IF NOT EXISTS idx_events_is_published ON events
+(is_published);
+CREATE INDEX
+IF NOT EXISTS idx_event_tags_event_id ON event_tags
+(event_id);
+CREATE INDEX
+IF NOT EXISTS idx_event_tags_lower_tag ON event_tags
+(LOWER
+(tag));
+CREATE INDEX
+IF NOT EXISTS idx_media_gallery_items_event_id ON media_gallery_items
+(event_id);
+CREATE INDEX
+IF NOT EXISTS idx_newsletter_issues_issue_date ON newsletter_issues
+(issue_date);
 
 INSERT INTO roles
   (code, name, description)
