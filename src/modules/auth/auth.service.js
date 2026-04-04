@@ -1,31 +1,31 @@
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const env = require('../../config/env');
-const ROLES = require('../../constants/roles');
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const env = require("../../config/env");
+const ROLES = require("../../constants/roles");
 
 const refreshTokenStore = new Set();
 
 const users = [
   {
     id: 1,
-    name: 'Super Admin',
-    email: 'admin@gbu.ac.in',
+    name: "Super Admin",
+    email: "admin@gbu.ac.in",
     role: ROLES.SUPER_ADMIN,
-    passwordHash: bcrypt.hashSync('Admin@123', 10),
+    passwordHash: bcrypt.hashSync("Admin@123", 10),
   },
   {
     id: 2,
-    name: 'School User',
-    email: 'school@gbu.ac.in',
+    name: "School User",
+    email: "school@gbu.ac.in",
     role: ROLES.SCHOOL,
-    passwordHash: bcrypt.hashSync('School@123', 10),
+    passwordHash: bcrypt.hashSync("School@123", 10),
   },
   {
     id: 3,
-    name: 'Faculty User',
-    email: 'faculty@gbu.ac.in',
+    name: "Faculty User",
+    email: "faculty@gbu.ac.in",
     role: ROLES.FACULTY,
-    passwordHash: bcrypt.hashSync('Faculty@123', 10),
+    passwordHash: bcrypt.hashSync("Faculty@123", 10),
   },
 ];
 
@@ -47,7 +47,7 @@ const signRefreshToken = (user) => {
     {
       sub: user.id,
       role: user.role,
-      type: 'refresh',
+      type: "refresh",
     },
     env.jwtRefreshSecret,
     { expiresIn: env.jwtRefreshExpiresIn },
@@ -55,7 +55,9 @@ const signRefreshToken = (user) => {
 };
 
 const login = async (email, password) => {
-  const user = users.find((item) => item.email.toLowerCase() === String(email).toLowerCase());
+  const user = users.find(
+    (item) => item.email.toLowerCase() === String(email).toLowerCase(),
+  );
 
   if (!user) {
     return null;
