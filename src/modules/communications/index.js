@@ -7,13 +7,11 @@ const ROLES = require("../../constants/roles");
 
 const router = express.Router();
 
-const DEFAULT_LIMIT = 10;
+const DEFAULT_LIMIT = 30;
 const MAX_LIMIT = 50;
-const RELATED_EVENTS_DEFAULT_LIMIT = 4;
-const RELATED_EVENTS_MAX_LIMIT = 12;
 
 const ANNOUNCEMENT_SORT_FIELDS = {
-  date: "date",
+  date: "published_date",
   title: "title",
   category: "type",
   priority: "priority",
@@ -21,12 +19,27 @@ const ANNOUNCEMENT_SORT_FIELDS = {
 };
 
 const NEWS_SORT_FIELDS = {
-  date: "date",
+  date: "published_date",
   title: "title",
   category: "category",
   priority: "priority",
   views: "views",
   likes: "likes",
+};
+
+const NEWSLETTER_SORT_FIELDS = {
+  date: "published_date",
+  title: "title",
+  issueNumber: "issue_number",
+  category: "category",
+  views: "views",
+};
+
+const MEDIA_GALLERY_SORT_FIELDS = {
+  date: "published_date",
+  title: "title",
+  category: "category",
+  year: "year",
 };
 
 const EVENTS_SORT_FIELDS = {
@@ -96,10 +109,112 @@ const parseTagString = (tagText) => {
   if (!tagText) {
     return [];
   }
-  return String(tagText)
-    .split(",")
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
+
+  if (Array.isArray(tagText)) {
+    return tagText
+      .map((item) => String(item).trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  if (typeof tagText === "string") {
+    const normalized = tagText.trim();
+    if (!normalized) {
+      return [];
+    }
+
+    if (normalized.startsWith("[") && normalized.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(normalized);
+        if (Array.isArray(parsed)) {
+          return parsed
+            .map((item) => String(item).trim().toLowerCase())
+            .filter(Boolean);
+        }
+      } catch (error) {
+        // Fallback to comma split below.
+      }
+    }
+
+    return normalized
+      .split(",")
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
+const normalizeJsonArray = (rawValue) => {
+  if (rawValue === undefined || rawValue === null || rawValue === "") {
+    return [];
+  }
+
+  if (Array.isArray(rawValue)) {
+    return rawValue;
+  }
+
+  if (typeof rawValue === "string") {
+    const trimmed = rawValue.trim();
+    if (!trimmed) {
+      return [];
+    }
+
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
+        return [];
+      }
+    }
+
+    return trimmed
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
+const formatTimestampForApi = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 19);
+  }
+
+  const normalized = String(value).trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/.test(normalized)) {
+    const asIso = normalized.replace(" ", "T");
+    return asIso.length === 16 ? `${asIso}:00` : asIso;
+  }
+
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.toISOString().slice(0, 19);
+};
+
+const parseTimestampInput = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.toISOString().slice(0, 19).replace("T", " ");
 };
 
 const parseEventId = (value) => {
@@ -221,7 +336,7 @@ const mapAnnouncement = (row) => ({
     String(row.priority || "").toLowerCase(),
   ].filter(Boolean),
   coverImageUrl: row.pdf_url,
-  publishedAt: row.date,
+  publishedAt: row.published_date,
   createdAt: null,
   updatedAt: null,
   priority: row.priority,
@@ -240,7 +355,7 @@ const mapNewsItem = (row) => ({
   tags: parseTagString(row.tags),
   sourceUrl: null,
   coverImageUrl: row.image_url,
-  publishedAt: row.date,
+  publishedAt: row.published_date,
   createdAt: null,
   updatedAt: null,
   author: row.author,
@@ -248,37 +363,78 @@ const mapNewsItem = (row) => ({
   priority: row.priority,
   views: row.views,
   likes: row.likes,
-  featured: row.featured,
+  featured: row.is_featured,
   status: row.status,
 });
 
-const mapEvent = (row) => ({
+const mapEvent = (row) => {
+  const startsAt =
+    formatTimestampForApi(row.starts_at) ||
+    buildEventStartIso(row.date, row.time);
+  const endsAt = formatTimestampForApi(row.ends_at);
+  const venue = row.venue || row.location || null;
+  const coverImageUrl = row.cover_image || row.image || null;
+  const tags = parseTagString(row.tags);
+  const timeString = row.time_string || row.time || null;
+
+  return {
+    id: row.id,
+    title: row.title,
+    slug: `event-${row.id}`,
+    summary: row.description,
+    description: row.description,
+    category: row.type,
+    venue,
+    organizer: row.organizer,
+    startsAt,
+    endsAt,
+    coverImageUrl,
+    registrationUrl: row.registration_url || null,
+    isFeatured: false,
+    isPublished: String(row.status || "").toLowerCase() !== "draft",
+    publishedAt: startsAt,
+    tags,
+    createdAt: null,
+    updatedAt: null,
+    attendees: row.attendees,
+    status: row.status,
+    price: row.price,
+    year: row.year,
+    date: startsAt ? startsAt.slice(0, 10) : null,
+    time: timeString,
+    location: venue,
+    type: row.type,
+    mode: row.mode || "Offline",
+    gallery: normalizeJsonArray(row.gallery),
+    agenda: normalizeJsonArray(row.agenda),
+    speakers: normalizeJsonArray(row.speakers),
+  };
+};
+
+const mapMediaGalleryItem = (row) => {
+  const images = normalizeJsonArray(row.images);
+
+  return {
+    id: row.id,
+    title: row.title,
+    category: row.category,
+    year: row.year,
+    publishedAt: row.published_date,
+    images,
+    coverImageUrl: images[0] || null,
+  };
+};
+
+const mapNewsletter = (row) => ({
   id: row.id,
   title: row.title,
-  slug: `event-${row.id}`,
-  summary: row.description,
-  description: row.description,
-  category: row.type,
-  venue: row.location,
-  organizer: row.organizer,
-  startsAt: buildEventStartIso(row.date, row.time),
-  endsAt: null,
-  coverImageUrl: row.image,
-  registrationUrl: null,
-  isFeatured: false,
-  isPublished: String(row.status || "").toLowerCase() !== "draft",
-  publishedAt: row.date,
-  tags: parseTagString(row.tags),
-  createdAt: null,
-  updatedAt: null,
-  attendees: row.attendees,
-  status: row.status,
-  price: row.price,
-  year: row.year,
-  date: row.date,
-  time: row.time,
-  location: row.location,
-  type: row.type,
+  issueNumber: row.issue_number,
+  publishedDate: row.published_date,
+  coverImageUrl: row.cover_image_url,
+  excerpt: row.excerpt,
+  pdfUrl: row.pdf_url,
+  views: row.views,
+  category: row.category,
 });
 
 const parseListFilters = (req, res) => {
@@ -329,153 +485,106 @@ const parseListFilters = (req, res) => {
   };
 };
 
-router.get("/announcements", async (req, res) => {
-  const filters = parseListFilters(req, res);
-  if (!filters) {
-    return;
-  }
+const handleNoticesList = async (req, res) => {
+  const isNoticesRoute = req.path === "/notices";
+  const successMessage = isNoticesRoute
+    ? "Notices fetched successfully"
+    : "Announcements fetched successfully";
+  const errorField = isNoticesRoute ? "notices" : "announcements";
+  const errorMessage = isNoticesRoute
+    ? "Failed to fetch notices"
+    : "Failed to fetch announcements";
 
   try {
-    const whereClauses = ["1=1"];
-    const params = [];
-
-    appendCommonClauses({
-      whereClauses,
-      params,
-      search: filters.search,
-      category: filters.category,
-      dateFrom: filters.dateFrom,
-      dateTo: filters.dateTo,
-      tags: filters.tags,
-      searchColumns: ["title", "content", "type"],
-      categoryColumn: "type",
-      dateColumn: "date",
-      tagsFilter: (placeholder) =>
-        `EXISTS (
-          SELECT 1
-          FROM unnest(${placeholder}::text[]) AS t(tag)
-          WHERE LOWER(COALESCE(type, '')) = t.tag
-             OR LOWER(COALESCE(priority, '')) = t.tag
-             OR COALESCE(content, '') ILIKE '%' || t.tag || '%'
-        )`,
-    });
-
-    const whereSql = `WHERE ${whereClauses.join(" AND ")}`;
-    const sortSql = buildSortClause({
-      sortBy: filters.sortBy,
-      order: filters.order,
-      sortFields: ANNOUNCEMENT_SORT_FIELDS,
-      fallbackSortBy: "date",
-    });
-
-    const countResult = await query(
-      `SELECT COUNT(*)::int AS total FROM notices ${whereSql}`,
-      params,
-    );
-
-    const pagination = getPagination({
-      page: filters.page,
-      limit: filters.limit,
-      total: Number(countResult.rows[0]?.total || 0),
-    });
-
     const listResult = await query(
       `
-      SELECT id, title, content, date, type, priority, views, is_new, pdf_url
+      SELECT id, title, content, published_date, type, priority, views, is_new, pdf_url
       FROM notices
-      ${whereSql}
-      ORDER BY ${sortSql}
-      LIMIT $${params.length + 1}
-      OFFSET $${params.length + 2}
+      ORDER BY published_date DESC, id DESC
       `,
-      [...params, pagination.limit, pagination.offset],
     );
 
     return successResponse(
       res,
-      "Announcements fetched successfully",
+      successMessage,
       listResult.rows.map(mapAnnouncement),
-      200,
-      pagination,
     );
   } catch (error) {
     return errorResponse(
       res,
-      "Failed to fetch announcements",
-      [{ field: "announcements", message: error.message }],
+      errorMessage,
+      [{ field: errorField, message: error.message }],
+      500,
+    );
+  }
+};
+
+router.get("/announcements", handleNoticesList);
+router.get("/notices", handleNoticesList);
+
+router.get("/notices/:id", async (req, res) => {
+  const id = parseEventId(req.params.id);
+
+  if (!id) {
+    return errorResponse(
+      res,
+      "Validation failed",
+      [{ field: "id", message: "Notice id must be a valid integer" }],
+      400,
+    );
+  }
+
+  try {
+    const noticeResult = await query(
+      `
+      SELECT id, title, content, published_date, type, priority, views, is_new, pdf_url
+      FROM notices
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [id],
+    );
+
+    if (!noticeResult.rows.length) {
+      return errorResponse(
+        res,
+        "Notice not found",
+        [{ field: "id", message: "No notice found for this id" }],
+        404,
+      );
+    }
+
+    return successResponse(
+      res,
+      "Notice fetched successfully",
+      mapAnnouncement(noticeResult.rows[0]),
+    );
+  } catch (error) {
+    return errorResponse(
+      res,
+      "Failed to fetch notice",
+      [{ field: "notice", message: error.message }],
       500,
     );
   }
 });
 
 router.get("/news", async (req, res) => {
-  const filters = parseListFilters(req, res);
-  if (!filters) {
-    return;
-  }
-
   try {
-    const whereClauses = ["1=1"];
-    const params = [];
-
-    appendCommonClauses({
-      whereClauses,
-      params,
-      search: filters.search,
-      category: filters.category,
-      dateFrom: filters.dateFrom,
-      dateTo: filters.dateTo,
-      tags: filters.tags,
-      searchColumns: ["title", "excerpt", "content", "author", "department"],
-      categoryColumn: "category",
-      dateColumn: "date",
-      tagsFilter: (placeholder) =>
-        `EXISTS (
-          SELECT 1
-          FROM unnest(${placeholder}::text[]) AS t(tag)
-          WHERE COALESCE(tags, '') ILIKE '%' || t.tag || '%'
-        )`,
-    });
-
-    const whereSql = `WHERE ${whereClauses.join(" AND ")}`;
-    const sortSql = buildSortClause({
-      sortBy: filters.sortBy,
-      order: filters.order,
-      sortFields: NEWS_SORT_FIELDS,
-      fallbackSortBy: "date",
-    });
-
-    const countResult = await query(
-      `SELECT COUNT(*)::int AS total FROM news ${whereSql}`,
-      params,
-    );
-
-    const pagination = getPagination({
-      page: filters.page,
-      limit: filters.limit,
-      total: Number(countResult.rows[0]?.total || 0),
-    });
-
     const listResult = await query(
       `
       SELECT
-        id, title, excerpt, content, date, author, department,
-        tags, category, priority, views, likes, image_url, featured, status
+        id, title, excerpt, content, published_date, author, department,
+        tags, category, priority, views, likes, image_url, is_featured, status
       FROM news
-      ${whereSql}
-      ORDER BY ${sortSql}
-      LIMIT $${params.length + 1}
-      OFFSET $${params.length + 2}
+      ORDER BY published_date DESC, id DESC
       `,
-      [...params, pagination.limit, pagination.offset],
     );
 
     return successResponse(
       res,
       "News fetched successfully",
       listResult.rows.map(mapNewsItem),
-      200,
-      pagination,
     );
   } catch (error) {
     return errorResponse(
@@ -487,87 +596,115 @@ router.get("/news", async (req, res) => {
   }
 });
 
-router.get("/events", async (req, res) => {
-  const filters = parseListFilters(req, res);
-  if (!filters) {
-    return;
+router.get("/news/:id", async (req, res) => {
+  const id = parseEventId(req.params.id);
+
+  if (!id) {
+    return errorResponse(
+      res,
+      "Validation failed",
+      [{ field: "id", message: "News id must be a valid integer" }],
+      400,
+    );
   }
 
   try {
-    const whereClauses = ["1=1"];
-    const params = [];
-
-    appendCommonClauses({
-      whereClauses,
-      params,
-      search: filters.search,
-      category: filters.category,
-      dateFrom: filters.dateFrom,
-      dateTo: filters.dateTo,
-      tags: filters.tags,
-      searchColumns: [
-        "e.title",
-        "e.description",
-        "e.organizer",
-        "e.location",
-        "e.type",
-      ],
-      categoryColumn: "e.type",
-      dateColumn: "e.date",
-      tagsFilter: (placeholder) =>
-        `EXISTS (
-          SELECT 1
-          FROM unnest(${placeholder}::text[]) AS t(tag)
-          WHERE COALESCE(e.tags, '') ILIKE '%' || t.tag || '%'
-        )`,
-    });
-
-    const whereSql = `WHERE ${whereClauses.join(" AND ")}`;
-    const sortSql = buildSortClause({
-      sortBy: filters.sortBy,
-      order: filters.order,
-      sortFields: EVENTS_SORT_FIELDS,
-      fallbackSortBy: "date",
-    });
-
-    const countResult = await query(
-      `SELECT COUNT(*)::int AS total FROM events e ${whereSql}`,
-      params,
-    );
-
-    const pagination = getPagination({
-      page: filters.page,
-      limit: filters.limit,
-      total: Number(countResult.rows[0]?.total || 0),
-    });
-
-    const listResult = await query(
+    const newsResult = await query(
       `
-      SELECT id, title, organizer, date, time, location, type, description,
-             image, attendees, status, price, tags, year
-      FROM events e
-      ${whereSql}
-      ORDER BY ${sortSql}
-      LIMIT $${params.length + 1}
-      OFFSET $${params.length + 2}
+      SELECT
+        id, title, excerpt, content, published_date, author, department,
+        tags, category, priority, views, likes, image_url, is_featured, status
+      FROM news
+      WHERE id = $1
+      LIMIT 1
       `,
-      [...params, pagination.limit, pagination.offset],
+      [id],
     );
+
+    if (!newsResult.rows.length) {
+      return errorResponse(
+        res,
+        "News not found",
+        [{ field: "id", message: "No news found for this id" }],
+        404,
+      );
+    }
 
     return successResponse(
       res,
-      "Events fetched successfully",
-      listResult.rows.map(mapEvent),
-      200,
-      pagination,
+      "News fetched successfully",
+      mapNewsItem(newsResult.rows[0]),
     );
   } catch (error) {
     return errorResponse(
       res,
-      "Failed to fetch events",
-      [{ field: "events", message: error.message }],
+      "Failed to fetch news",
+      [{ field: "news", message: error.message }],
       500,
     );
+  }
+});
+
+router.get(
+  ["/media-gallery", "/mediagallery", "/media-gallary", "/mediagallary"],
+  async (req, res) => {
+    try {
+      const listResult = await query(
+        `
+        SELECT id, title, category, year, published_date, images
+        FROM media_gallery
+        ORDER BY published_date DESC, id DESC
+        `,
+      );
+
+      return successResponse(
+        res,
+        "Media gallery fetched successfully",
+        listResult.rows.map(mapMediaGalleryItem),
+      );
+    } catch (error) {
+      return errorResponse(
+        res,
+        "Failed to fetch media gallery",
+        [{ field: "media_gallery", message: error.message }],
+        500,
+      );
+    }
+  },
+);
+
+router.get("/events", async (req, res) => {
+  try {
+    const listResult = await query(
+      `
+      SELECT
+        id,
+        title,
+        description,
+        starts_at,
+        time_string,
+        venue,
+        organizer,
+        type,
+        mode,
+        status,
+        price,
+        attendees,
+        cover_image,
+        tags,
+        year
+      FROM events
+      ORDER BY starts_at ASC, id ASC
+      `,
+    );
+
+    return res.status(200).json({
+      success: true,
+      count: listResult.rowCount,
+      data: listResult.rows,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 });
 
@@ -575,19 +712,15 @@ router.get("/events/:id", async (req, res) => {
   const id = parseEventId(req.params.id);
 
   if (!id) {
-    return errorResponse(
-      res,
-      "Validation failed",
-      [{ field: "id", message: "Event id must be a valid integer" }],
-      400,
-    );
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid event id" });
   }
 
   try {
     const eventResult = await query(
       `
-      SELECT id, title, organizer, date, time, location, type, description,
-             image, attendees, status, price, tags, year
+      SELECT *
       FROM events
       WHERE id = $1
       LIMIT 1
@@ -596,102 +729,49 @@ router.get("/events/:id", async (req, res) => {
     );
 
     if (!eventResult.rows.length) {
-      return errorResponse(
-        res,
-        "Event not found",
-        [{ field: "id", message: "No event found for this id" }],
-        404,
-      );
+      return res
+        .status(404)
+        .json({ success: false, message: "Event not found" });
     }
 
-    return successResponse(res, "Event fetched successfully", {
-      ...mapEvent(eventResult.rows[0]),
-      mediaGalleryItems: [],
+    return res.status(200).json({
+      success: true,
+      data: eventResult.rows[0],
     });
   } catch (error) {
-    return errorResponse(
-      res,
-      "Failed to fetch event",
-      [{ field: "event", message: error.message }],
-      500,
-    );
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 });
 
-router.get("/events/:id/related", async (req, res) => {
-  const id = parseEventId(req.params.id);
-  const limit = Math.min(
-    toPositiveInt(req.query.limit, RELATED_EVENTS_DEFAULT_LIMIT),
-    RELATED_EVENTS_MAX_LIMIT,
-  );
-
-  if (!id) {
-    return errorResponse(
-      res,
-      "Validation failed",
-      [{ field: "id", message: "Event id must be a valid integer" }],
-      400,
-    );
-  }
-
+router.get("/newsletters", async (req, res) => {
   try {
-    const baseEventResult = await query(
-      `SELECT id, type, year, tags FROM events WHERE id = $1 LIMIT 1`,
-      [id],
-    );
-
-    if (!baseEventResult.rows.length) {
-      return errorResponse(
-        res,
-        "Event not found",
-        [{ field: "id", message: "No event found for this id" }],
-        404,
-      );
-    }
-
-    const relatedResult = await query(
+    const listResult = await query(
       `
-      WITH base AS (
-        SELECT id, type, year,
-               regexp_split_to_array(lower(COALESCE(tags, '')), '\\s*,\\s*') AS tag_arr
-        FROM events
-        WHERE id = $1
-      )
       SELECT
-        e.id, e.title, e.organizer, e.date, e.time, e.location, e.type,
-        e.description, e.image, e.attendees, e.status, e.price, e.tags, e.year,
-        (
-          CASE WHEN lower(e.type) = lower(base.type) THEN 2 ELSE 0 END
-          + CASE WHEN e.year = base.year THEN 1 ELSE 0 END
-          + CASE
-              WHEN regexp_split_to_array(lower(COALESCE(e.tags, '')), '\\s*,\\s*') && base.tag_arr
-              THEN 1 ELSE 0
-            END
-        ) AS relevance_score
-      FROM events e
-      CROSS JOIN base
-      WHERE e.id <> base.id
-        AND (
-          lower(e.type) = lower(base.type)
-          OR e.year = base.year
-          OR regexp_split_to_array(lower(COALESCE(e.tags, '')), '\\s*,\\s*') && base.tag_arr
-        )
-      ORDER BY relevance_score DESC, e.date DESC, e.time DESC, e.id DESC
-      LIMIT $2
+        id,
+        title,
+        issue_number,
+        published_date,
+        cover_image_url,
+        excerpt,
+        pdf_url,
+        views,
+        category
+      FROM newsletters
+      ORDER BY published_date DESC, id DESC
       `,
-      [id, limit],
     );
 
     return successResponse(
       res,
-      "Related events fetched successfully",
-      relatedResult.rows.map(mapEvent),
+      "Newsletters fetched successfully",
+      listResult.rows.map(mapNewsletter),
     );
   } catch (error) {
     return errorResponse(
       res,
-      "Failed to fetch related events",
-      [{ field: "events", message: error.message }],
+      "Failed to fetch newsletters",
+      [{ field: "newsletters", message: error.message }],
       500,
     );
   }
@@ -704,22 +784,34 @@ router.post(
   async (req, res) => {
     const {
       title,
+      description,
       organizer,
-      date,
-      time,
-      location,
       venue,
+      location,
       type,
       category,
-      description,
-      image,
-      coverImageUrl,
-      attendees = 0,
+      mode,
       status,
       price,
-      tags,
-      year,
+      attendees = 0,
       startsAt,
+      starts_at,
+      endsAt,
+      ends_at,
+      date,
+      time,
+      timeString,
+      time_string,
+      year,
+      coverImageUrl,
+      cover_image,
+      image,
+      registrationUrl,
+      registration_url,
+      tags,
+      gallery,
+      agenda,
+      speakers,
     } = req.body;
 
     if (!title) {
@@ -731,71 +823,126 @@ router.post(
       );
     }
 
-    const parsedStart = startsAt ? new Date(startsAt) : null;
-    const eventDate =
-      toDateOnlyString(date) ||
-      (parsedStart && !Number.isNaN(parsedStart.getTime())
-        ? parsedStart.toISOString().slice(0, 10)
-        : null);
-    const eventTime =
-      parseTimeString(time) ||
-      (parsedStart && !Number.isNaN(parsedStart.getTime())
-        ? parsedStart.toISOString().slice(11, 16)
-        : "00:00");
+    const startsAtInput = startsAt || starts_at;
+    const endsAtInput = endsAt || ends_at;
 
-    if (!eventDate) {
+    const parsedDate = toDateOnlyString(date);
+    const parsedTime = parseTimeString(time) || "00:00";
+    const normalizedStartsAt =
+      parseTimestampInput(startsAtInput) ||
+      (parsedDate ? `${parsedDate} ${parsedTime}:00` : null);
+
+    if (!normalizedStartsAt) {
       return errorResponse(
         res,
         "Validation failed",
-        [{ field: "date", message: "date or startsAt is required" }],
+        [{ field: "startsAt", message: "startsAt or date is required" }],
         400,
       );
     }
 
-    const normalizedTags = normalizeTags(tags).join(",");
+    const normalizedEndsAt = parseTimestampInput(endsAtInput);
+    const normalizedVenue = String(venue || location || "").trim() || null;
     const normalizedType = String(type || category || "General").trim();
+    const normalizedMode = String(mode || "Offline").trim();
     const normalizedStatus = String(status || "upcoming").trim();
-    const normalizedYear = String(year || eventDate.slice(0, 4)).trim();
+    const normalizedPrice = String(price || "Free").trim();
+
     const parsedAttendees = Number.parseInt(attendees, 10);
     const safeAttendees = Number.isNaN(parsedAttendees) ? 0 : parsedAttendees;
+
+    const normalizedTimeString = String(
+      timeString ||
+        time_string ||
+        parseTimeString(time) ||
+        normalizedStartsAt.slice(11, 16),
+    ).trim();
+    const normalizedYear = String(
+      year || normalizedStartsAt.slice(0, 4),
+    ).trim();
+    const normalizedCoverImage = cover_image || coverImageUrl || image || null;
+    const normalizedRegistrationUrl =
+      registration_url || registrationUrl || null;
+
+    const normalizedTags = normalizeTags(tags);
+    const normalizedGallery = normalizeJsonArray(gallery);
+    const normalizedAgenda = normalizeJsonArray(agenda);
+    const normalizedSpeakers = normalizeJsonArray(speakers);
 
     const client = await getDbPool().connect();
 
     try {
       await client.query("BEGIN");
 
-      const nextIdResult = await client.query(
-        "SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM events",
-      );
-      const nextId = Number(nextIdResult.rows[0].next_id);
-
-      await client.query(
+      const insertResult = await client.query(
         `
         INSERT INTO events (
-          id, title, organizer, date, time, location, type, description,
-          image, attendees, status, price, tags, year
+          title,
+          description,
+          organizer,
+          venue,
+          type,
+          mode,
+          status,
+          price,
+          attendees,
+          starts_at,
+          ends_at,
+          time_string,
+          year,
+          cover_image,
+          registration_url,
+          tags,
+          gallery,
+          agenda,
+          speakers
         ) VALUES (
-          $1, $2, $3, $4::date, $5, $6, $7, $8,
-          $9, $10, $11, $12, $13, $14
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8,
+          $9,
+          $10::timestamp,
+          $11::timestamp,
+          $12,
+          $13,
+          $14,
+          $15,
+          $16::jsonb,
+          $17::jsonb,
+          $18::jsonb,
+          $19::jsonb
         )
+        RETURNING *
         `,
         [
-          nextId,
           String(title).trim(),
-          organizer || null,
-          eventDate,
-          eventTime,
-          location || venue || null,
-          normalizedType,
           description || null,
-          image || coverImageUrl || null,
-          safeAttendees,
+          organizer || null,
+          normalizedVenue,
+          normalizedType,
+          normalizedMode,
           normalizedStatus,
-          price || "Free",
-          normalizedTags || null,
+          normalizedPrice,
+          safeAttendees,
+          normalizedStartsAt,
+          normalizedEndsAt,
+          normalizedTimeString,
           normalizedYear,
+          normalizedCoverImage,
+          normalizedRegistrationUrl,
+          JSON.stringify(normalizedTags),
+          JSON.stringify(normalizedGallery),
+          JSON.stringify(normalizedAgenda),
+          JSON.stringify(normalizedSpeakers),
         ],
       );
+
+      const createdEvent = insertResult.rows[0];
 
       await writeAuditLog(client, {
         actorUserId: req?.user?.sub,
@@ -803,25 +950,15 @@ router.post(
         resourceType: "events",
         resourceId: null,
         requestId: req.requestId,
-        metadata: { eventId: nextId, title: String(title).trim() },
+        metadata: { eventId: createdEvent.id, title: String(title).trim() },
       });
 
       await client.query("COMMIT");
 
-      const createdEventResult = await query(
-        `
-        SELECT id, title, organizer, date, time, location, type, description,
-               image, attendees, status, price, tags, year
-        FROM events
-        WHERE id = $1
-        `,
-        [nextId],
-      );
-
       return successResponse(
         res,
         "Event created successfully",
-        mapEvent(createdEventResult.rows[0]),
+        mapEvent(createdEvent),
         201,
       );
     } catch (error) {
@@ -846,15 +983,21 @@ router.post(
     const {
       title,
       issueNo,
+      issueNumber,
       issueDate,
+      publishedDate,
       summary,
       contentHtml,
       pdfUrl,
       coverImageUrl,
+      views = 0,
+      category = "General",
       isPublished = true,
     } = req.body;
 
-    if (!title || !issueDate) {
+    const resolvedIssueDate = issueDate || publishedDate;
+
+    if (!title || !resolvedIssueDate) {
       return errorResponse(
         res,
         "Validation failed",
@@ -866,7 +1009,7 @@ router.post(
       );
     }
 
-    const parsedIssueDate = toDateOnlyString(issueDate);
+    const parsedIssueDate = toDateOnlyString(resolvedIssueDate);
     if (!parsedIssueDate) {
       return errorResponse(
         res,
@@ -880,59 +1023,53 @@ router.post(
 
     try {
       await client.query("BEGIN");
+      const normalizedIssueNumber = String(issueNumber || issueNo || "").trim();
+      const normalizedViews = Number.isNaN(Number.parseInt(views, 10))
+        ? 0
+        : Number.parseInt(views, 10);
+      const normalizedExcerpt = summary || contentHtml || String(title).trim();
 
-      const nextIdResult = await client.query(
-        "SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM news",
-      );
-      const nextId = Number(nextIdResult.rows[0].next_id);
-
-      const contentParts = [
-        summary || "",
-        contentHtml || "",
-        pdfUrl ? `PDF: ${pdfUrl}` : "",
-      ]
-        .filter(Boolean)
-        .join("\n\n");
-
-      await client.query(
+      const insertResult = await client.query(
         `
-        INSERT INTO news (
-          id, title, excerpt, content, date, author, department,
-          tags, category, priority, views, likes, image_url, featured, status
+        INSERT INTO newsletters (
+          title,
+          issue_number,
+          published_date,
+          cover_image_url,
+          excerpt,
+          pdf_url,
+          views,
+          category,
         ) VALUES (
-          $1, $2, $3, $4, $5::date, $6, $7,
-          $8, $9, $10, $11, $12, $13, $14, $15
+          $1, $2, $3::date, $4, $5, $6, $7, $8
         )
+        RETURNING id
         `,
         [
-          nextId,
           String(title).trim(),
-          summary || String(title).trim(),
-          contentParts || summary || String(title).trim(),
+          normalizedIssueNumber || null,
           parsedIssueDate,
-          req?.user?.name || "System",
-          "Communications",
-          issueNo ? `newsletter,${issueNo}` : "newsletter",
-          "Newsletter",
-          "medium",
-          0,
-          0,
           coverImageUrl || null,
-          false,
-          isPublished ? "published" : "draft",
+          normalizedExcerpt,
+          pdfUrl || null,
+          normalizedViews,
+          String(category || "General").trim() || "General",
         ],
       );
+
+      const createdNewsletterId = Number(insertResult.rows[0].id);
 
       await writeAuditLog(client, {
         actorUserId: req?.user?.sub,
         action: "newsletter.create",
-        resourceType: "news",
+        resourceType: "newsletters",
         resourceId: null,
         requestId: req.requestId,
         metadata: {
-          newsId: nextId,
+          newsletterId: createdNewsletterId,
           title: String(title).trim(),
-          issueNo: issueNo || null,
+          issueNumber: normalizedIssueNumber || null,
+          isPublished: Boolean(isPublished),
         },
       });
 
@@ -942,14 +1079,17 @@ router.post(
         res,
         "Newsletter created successfully",
         {
-          id: nextId,
+          id: createdNewsletterId,
           title: String(title).trim(),
-          issueNo: issueNo || null,
+          issueNumber: normalizedIssueNumber || null,
           issueDate: parsedIssueDate,
-          summary: summary || String(title).trim(),
+          publishedDate: parsedIssueDate,
+          summary: normalizedExcerpt,
           contentHtml: contentHtml || null,
           pdfUrl: pdfUrl || null,
           coverImageUrl: coverImageUrl || null,
+          views: normalizedViews,
+          category: String(category || "General").trim() || "General",
           isPublished: Boolean(isPublished),
         },
         201,
