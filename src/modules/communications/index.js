@@ -27,6 +27,13 @@ const NEWS_SORT_FIELDS = {
   likes: "likes",
 };
 
+const MEDIA_GALLERY_SORT_FIELDS = {
+  date: "published_date",
+  title: "title",
+  category: "category",
+  year: "year",
+};
+
 const EVENTS_SORT_FIELDS = {
   date: "e.date",
   title: "e.title",
@@ -396,6 +403,20 @@ const mapEvent = (row) => {
   };
 };
 
+const mapMediaGalleryItem = (row) => {
+  const images = normalizeJsonArray(row.images);
+
+  return {
+    id: row.id,
+    title: row.title,
+    category: row.category,
+    year: row.year,
+    publishedAt: row.published_date,
+    images,
+    coverImageUrl: images[0] || null,
+  };
+};
+
 const parseListFilters = (req, res) => {
   const { search, category, dateFrom, dateTo, tags, sortBy, order } = req.query;
   const parsedDateFrom = dateFrom ? toDateOnlyString(dateFrom) : null;
@@ -713,6 +734,88 @@ router.get("/news/:id", async (req, res) => {
     );
   }
 });
+
+router.get(
+  ["/media-gallery", "/mediagallery", "/media-gallary", "/mediagallary"],
+  async (req, res) => {
+    const filters = parseListFilters(req, res);
+    if (!filters) {
+      return;
+    }
+
+    const year = String(req.query.year || "").trim();
+
+    try {
+      const whereClauses = ["1=1"];
+      const params = [];
+
+      appendCommonClauses({
+        whereClauses,
+        params,
+        search: filters.search,
+        category: filters.category,
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        tags: [],
+        searchColumns: ["title", "category", "year"],
+        categoryColumn: "category",
+        dateColumn: "published_date",
+      });
+
+      if (year) {
+        const placeholder = `$${params.length + 1}`;
+        params.push(year.toLowerCase());
+        whereClauses.push(`LOWER(year) = ${placeholder}`);
+      }
+
+      const whereSql = `WHERE ${whereClauses.join(" AND ")}`;
+      const sortSql = buildSortClause({
+        sortBy: filters.sortBy,
+        order: filters.order,
+        sortFields: MEDIA_GALLERY_SORT_FIELDS,
+        fallbackSortBy: "date",
+      });
+
+      const countResult = await query(
+        `SELECT COUNT(*)::int AS total FROM media_gallery ${whereSql}`,
+        params,
+      );
+
+      const pagination = getPagination({
+        page: filters.page,
+        limit: filters.limit,
+        total: Number(countResult.rows[0]?.total || 0),
+      });
+
+      const listResult = await query(
+        `
+        SELECT id, title, category, year, published_date, images
+        FROM media_gallery
+        ${whereSql}
+        ORDER BY ${sortSql}
+        LIMIT $${params.length + 1}
+        OFFSET $${params.length + 2}
+        `,
+        [...params, pagination.limit, pagination.offset],
+      );
+
+      return successResponse(
+        res,
+        "Media gallery fetched successfully",
+        listResult.rows.map(mapMediaGalleryItem),
+        200,
+        pagination,
+      );
+    } catch (error) {
+      return errorResponse(
+        res,
+        "Failed to fetch media gallery",
+        [{ field: "media_gallery", message: error.message }],
+        500,
+      );
+    }
+  },
+);
 
 router.get("/events", async (req, res) => {
   try {
