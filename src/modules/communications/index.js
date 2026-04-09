@@ -7,7 +7,7 @@ const ROLES = require("../../constants/roles");
 
 const router = express.Router();
 
-const DEFAULT_LIMIT = 10;
+const DEFAULT_LIMIT = 30;
 const MAX_LIMIT = 50;
 const RELATED_EVENTS_DEFAULT_LIMIT = 4;
 const RELATED_EVENTS_MAX_LIMIT = 12;
@@ -547,7 +547,12 @@ router.get("/events", async (req, res) => {
              image, attendees, status, price, tags, year
       FROM events e
       ${whereSql}
-      ORDER BY ${sortSql}
+      ORDER BY 
+       CASE 
+      WHEN e.date >= CURRENT_DATE THEN 0
+      ELSE 1
+    END,
+    e.date ASC
       LIMIT $${params.length + 1}
       OFFSET $${params.length + 2}
       `,
@@ -571,7 +576,7 @@ router.get("/events", async (req, res) => {
   }
 });
 
-router.get("/events/:id", async (req, res) => {
+router.get("/eventss/:id", async (req, res) => {
   const id = parseEventId(req.params.id);
 
   if (!id) {
@@ -586,9 +591,9 @@ router.get("/events/:id", async (req, res) => {
   try {
     const eventResult = await query(
       `
-      SELECT id, title, organizer, date, time, location, type, description,
-             image, attendees, status, price, tags, year
-      FROM events
+      SELECT id, title, description, date, endDate, venue,
+         organizer, type, mode, isUpcoming, registrationUrl, image
+  FROM eventss
       WHERE id = $1
       LIMIT 1
       `,
@@ -603,9 +608,25 @@ router.get("/events/:id", async (req, res) => {
         404,
       );
     }
-
+    const e = eventResult.rows[0];
     return successResponse(res, "Event fetched successfully", {
-      ...mapEvent(eventResult.rows[0]),
+      id: e.id,
+      title: e.title,
+      description: e.description,
+      date: e.date,
+      endDate: e.enddate,
+      venue: e.venue,
+      organizer: e.organizer,
+      type: e.type,
+      mode: e.mode,
+      isUpcoming: e.isupcoming,
+      registrationUrl: e.registrationurl, // 🔥 FIXED
+      coverImageUrl: e.image,
+      images: [e.image],
+      startsAt: e.date,
+      endsAt: e.enddate,
+      location: e.venue,
+
       mediaGalleryItems: [],
     });
   } catch (error) {
