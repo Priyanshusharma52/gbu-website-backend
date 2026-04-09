@@ -11,7 +11,7 @@ const DEFAULT_LIMIT = 30;
 const MAX_LIMIT = 50;
 
 const ANNOUNCEMENT_SORT_FIELDS = {
-  date: "date",
+  date: "published_date",
   title: "title",
   category: "type",
   priority: "priority",
@@ -19,7 +19,7 @@ const ANNOUNCEMENT_SORT_FIELDS = {
 };
 
 const NEWS_SORT_FIELDS = {
-  date: "date",
+  date: "published_date",
   title: "title",
   category: "category",
   priority: "priority",
@@ -321,7 +321,7 @@ const mapAnnouncement = (row) => ({
     String(row.priority || "").toLowerCase(),
   ].filter(Boolean),
   coverImageUrl: row.pdf_url,
-  publishedAt: row.date,
+  publishedAt: row.published_date,
   createdAt: null,
   updatedAt: null,
   priority: row.priority,
@@ -340,7 +340,7 @@ const mapNewsItem = (row) => ({
   tags: parseTagString(row.tags),
   sourceUrl: null,
   coverImageUrl: row.image_url,
-  publishedAt: row.date,
+  publishedAt: row.published_date,
   createdAt: null,
   updatedAt: null,
   author: row.author,
@@ -348,7 +348,7 @@ const mapNewsItem = (row) => ({
   priority: row.priority,
   views: row.views,
   likes: row.likes,
-  featured: row.featured,
+  featured: row.is_featured,
   status: row.status,
 });
 
@@ -444,11 +444,20 @@ const parseListFilters = (req, res) => {
   };
 };
 
-router.get("/announcements", async (req, res) => {
+const handleNoticesList = async (req, res) => {
   const filters = parseListFilters(req, res);
   if (!filters) {
     return;
   }
+
+  const isNoticesRoute = req.path === "/notices";
+  const successMessage = isNoticesRoute
+    ? "Notices fetched successfully"
+    : "Announcements fetched successfully";
+  const errorField = isNoticesRoute ? "notices" : "announcements";
+  const errorMessage = isNoticesRoute
+    ? "Failed to fetch notices"
+    : "Failed to fetch announcements";
 
   try {
     const whereClauses = ["1=1"];
@@ -464,7 +473,7 @@ router.get("/announcements", async (req, res) => {
       tags: filters.tags,
       searchColumns: ["title", "content", "type"],
       categoryColumn: "type",
-      dateColumn: "date",
+      dateColumn: "published_date",
       tagsFilter: (placeholder) =>
         `EXISTS (
           SELECT 1
@@ -496,7 +505,7 @@ router.get("/announcements", async (req, res) => {
 
     const listResult = await query(
       `
-      SELECT id, title, content, date, type, priority, views, is_new, pdf_url
+      SELECT id, title, content, published_date, type, priority, views, is_new, pdf_url
       FROM notices
       ${whereSql}
       ORDER BY ${sortSql}
@@ -508,7 +517,7 @@ router.get("/announcements", async (req, res) => {
 
     return successResponse(
       res,
-      "Announcements fetched successfully",
+      successMessage,
       listResult.rows.map(mapAnnouncement),
       200,
       pagination,
@@ -516,8 +525,58 @@ router.get("/announcements", async (req, res) => {
   } catch (error) {
     return errorResponse(
       res,
-      "Failed to fetch announcements",
-      [{ field: "announcements", message: error.message }],
+      errorMessage,
+      [{ field: errorField, message: error.message }],
+      500,
+    );
+  }
+};
+
+router.get("/announcements", handleNoticesList);
+router.get("/notices", handleNoticesList);
+
+router.get("/notices/:id", async (req, res) => {
+  const id = parseEventId(req.params.id);
+
+  if (!id) {
+    return errorResponse(
+      res,
+      "Validation failed",
+      [{ field: "id", message: "Notice id must be a valid integer" }],
+      400,
+    );
+  }
+
+  try {
+    const noticeResult = await query(
+      `
+      SELECT id, title, content, published_date, type, priority, views, is_new, pdf_url
+      FROM notices
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [id],
+    );
+
+    if (!noticeResult.rows.length) {
+      return errorResponse(
+        res,
+        "Notice not found",
+        [{ field: "id", message: "No notice found for this id" }],
+        404,
+      );
+    }
+
+    return successResponse(
+      res,
+      "Notice fetched successfully",
+      mapAnnouncement(noticeResult.rows[0]),
+    );
+  } catch (error) {
+    return errorResponse(
+      res,
+      "Failed to fetch notice",
+      [{ field: "notice", message: error.message }],
       500,
     );
   }
@@ -543,12 +602,16 @@ router.get("/news", async (req, res) => {
       tags: filters.tags,
       searchColumns: ["title", "excerpt", "content", "author", "department"],
       categoryColumn: "category",
-      dateColumn: "date",
+      dateColumn: "published_date",
       tagsFilter: (placeholder) =>
         `EXISTS (
           SELECT 1
           FROM unnest(${placeholder}::text[]) AS t(tag)
-          WHERE COALESCE(tags, '') ILIKE '%' || t.tag || '%'
+          WHERE EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements_text(COALESCE(tags, '[]'::jsonb)) AS jt(value)
+            WHERE lower(jt.value) = t.tag
+          )
         )`,
     });
 
@@ -574,8 +637,8 @@ router.get("/news", async (req, res) => {
     const listResult = await query(
       `
       SELECT
-        id, title, excerpt, content, date, author, department,
-        tags, category, priority, views, likes, image_url, featured, status
+        id, title, excerpt, content, published_date, author, department,
+        tags, category, priority, views, likes, image_url, is_featured, status
       FROM news
       ${whereSql}
       ORDER BY ${sortSql}
@@ -591,6 +654,55 @@ router.get("/news", async (req, res) => {
       listResult.rows.map(mapNewsItem),
       200,
       pagination,
+    );
+  } catch (error) {
+    return errorResponse(
+      res,
+      "Failed to fetch news",
+      [{ field: "news", message: error.message }],
+      500,
+    );
+  }
+});
+
+router.get("/news/:id", async (req, res) => {
+  const id = parseEventId(req.params.id);
+
+  if (!id) {
+    return errorResponse(
+      res,
+      "Validation failed",
+      [{ field: "id", message: "News id must be a valid integer" }],
+      400,
+    );
+  }
+
+  try {
+    const newsResult = await query(
+      `
+      SELECT
+        id, title, excerpt, content, published_date, author, department,
+        tags, category, priority, views, likes, image_url, is_featured, status
+      FROM news
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [id],
+    );
+
+    if (!newsResult.rows.length) {
+      return errorResponse(
+        res,
+        "News not found",
+        [{ field: "id", message: "No news found for this id" }],
+        404,
+      );
+    }
+
+    return successResponse(
+      res,
+      "News fetched successfully",
+      mapNewsItem(newsResult.rows[0]),
     );
   } catch (error) {
     return errorResponse(
@@ -913,11 +1025,6 @@ router.post(
     try {
       await client.query("BEGIN");
 
-      const nextIdResult = await client.query(
-        "SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM news",
-      );
-      const nextId = Number(nextIdResult.rows[0].next_id);
-
       const contentParts = [
         summary || "",
         contentHtml || "",
@@ -926,34 +1033,51 @@ router.post(
         .filter(Boolean)
         .join("\n\n");
 
-      await client.query(
+      const tagsPayload = issueNo
+        ? JSON.stringify(["newsletter", String(issueNo)])
+        : JSON.stringify(["newsletter"]);
+
+      const insertResult = await client.query(
         `
         INSERT INTO news (
-          id, title, excerpt, content, date, author, department,
-          tags, category, priority, views, likes, image_url, featured, status
+          title,
+          excerpt,
+          content,
+          author,
+          department,
+          category,
+          published_date,
+          priority,
+          views,
+          likes,
+          is_featured,
+          status,
+          image_url,
+          tags
         ) VALUES (
-          $1, $2, $3, $4, $5::date, $6, $7,
-          $8, $9, $10, $11, $12, $13, $14, $15
+          $1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10, $11, $12, $13, $14::jsonb
         )
+        RETURNING id
         `,
         [
-          nextId,
           String(title).trim(),
           summary || String(title).trim(),
           contentParts || summary || String(title).trim(),
-          parsedIssueDate,
           req?.user?.name || "System",
           "Communications",
-          issueNo ? `newsletter,${issueNo}` : "newsletter",
           "Newsletter",
+          parsedIssueDate,
           "medium",
           0,
           0,
-          coverImageUrl || null,
           false,
           isPublished ? "published" : "draft",
+          coverImageUrl || null,
+          tagsPayload,
         ],
       );
+
+      const createdNewsId = Number(insertResult.rows[0].id);
 
       await writeAuditLog(client, {
         actorUserId: req?.user?.sub,
@@ -962,7 +1086,7 @@ router.post(
         resourceId: null,
         requestId: req.requestId,
         metadata: {
-          newsId: nextId,
+          newsId: createdNewsId,
           title: String(title).trim(),
           issueNo: issueNo || null,
         },
@@ -974,7 +1098,7 @@ router.post(
         res,
         "Newsletter created successfully",
         {
-          id: nextId,
+          id: createdNewsId,
           title: String(title).trim(),
           issueNo: issueNo || null,
           issueDate: parsedIssueDate,
