@@ -109,6 +109,22 @@ CREATE TABLE news
       ::jsonb
 );
 
+      CREATE TABLE tenders
+      (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        reference_no VARCHAR(100) UNIQUE,
+        category VARCHAR(100),
+        tender_type VARCHAR(20) NOT NULL DEFAULT 'RFP',
+        published_date DATE,
+        closing_date DATE NOT NULL,
+        document_url TEXT NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
       -- =====================================
       -- INSERT ONLY 1 RECORD PER CORE TABLE
       -- =====================================
@@ -253,6 +269,57 @@ CREATE TABLE news
       (24, 'Photography Exhibition', 'Cultural', '2025', '2025-06-20', '["https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?auto=format&fit=crop&w=600&q=80"]'::jsonb),
       (25, 'Summer Internship Orientation', 'Academic', '2025', '2025-07-01', '["https://biotechworldindia.in/wp-content/uploads/2023/11/IMG-20200620-WA0002-1024x705.jpg"]'::jsonb);
 
+      INSERT INTO tenders
+        (
+        id,
+        title,
+        description,
+        reference_no,
+        category,
+        tender_type,
+        published_date,
+        closing_date,
+        document_url,
+        is_active
+        )
+      VALUES
+        (
+          1,
+          'Supply of IT Equipment and Software Licenses',
+          'Procurement of desktops, networking hardware, and software licenses for the academic block.',
+          'GBU/TND/2026/001',
+          'Information Technology',
+          'RFQ',
+          '2026-04-01',
+          '2026-05-10',
+          '/documents/tender-001.pdf',
+          TRUE
+        ),
+        (
+          2,
+          'Construction of Water Treatment Facility',
+          'Design, construction, and commissioning of a campus water treatment plant.',
+          'GBU/TND/2026/002',
+          'Infrastructure',
+          'RFP',
+          '2026-03-20',
+          '2026-04-05',
+          '/documents/tender-002.pdf',
+          TRUE
+        ),
+        (
+          3,
+          'AMC for HVAC Systems',
+          'Annual maintenance contract for HVAC units across hostels and teaching blocks.',
+          'GBU/TND/2026/003',
+          'Maintenance',
+          'RFE',
+          '2026-01-10',
+          '2026-02-15',
+          '/documents/tender-003.pdf',
+          TRUE
+        );
+
       SELECT setval(
   pg_get_serial_sequence('events', 'id'),
   COALESCE((SELECT MAX(id) FROM events), 1),
@@ -262,6 +329,12 @@ CREATE TABLE news
       SELECT setval(
   pg_get_serial_sequence('media_gallery', 'id'),
   COALESCE((SELECT MAX(id) FROM media_gallery), 1),
+  true
+);
+
+      SELECT setval(
+  pg_get_serial_sequence('tenders', 'id'),
+  COALESCE((SELECT MAX(id) FROM tenders), 1),
   true
 );
 
@@ -306,5 +379,7 @@ END $$;
       FROM media_gallery;
       SELECT COUNT(*) AS newsletters_count
       FROM newsletters;
+      SELECT COUNT(*) AS tenders_count
+      FROM tenders;
 
       COMMIT;
