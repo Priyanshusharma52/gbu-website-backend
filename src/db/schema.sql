@@ -125,6 +125,34 @@ CREATE TABLE news
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
 
+      CREATE TABLE recruitments
+      (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        reference_no VARCHAR(100) UNIQUE NOT NULL,
+        category VARCHAR(50) NOT NULL,
+        tab_id VARCHAR(50) NOT NULL,
+        published_date DATE,
+        closing_date DATE NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE recruitment_documents
+      (
+        id SERIAL PRIMARY KEY,
+        recruitment_id INT NOT NULL REFERENCES recruitments(id) ON DELETE CASCADE,
+        name VARCHAR(150) NOT NULL,
+        document_type VARCHAR(50) NOT NULL,
+        file_url TEXT NOT NULL,
+        description TEXT,
+        sort_order INT NOT NULL DEFAULT 1,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
       -- =====================================
       -- INSERT ONLY 1 RECORD PER CORE TABLE
       -- =====================================
@@ -302,6 +330,133 @@ CREATE TABLE news
           TRUE
         );
 
+      INSERT INTO recruitments
+        (
+        id,
+        title,
+        description,
+        reference_no,
+        category,
+        tab_id,
+        published_date,
+        closing_date,
+        is_active
+        )
+      VALUES
+        (
+          1,
+          'Advertisement of Professors',
+          'Inviting applications for Professor positions across multiple schools.',
+          'GBU/Admn/2026/01',
+          'teaching',
+          'professors',
+          '2026-04-10',
+          '2026-05-31',
+          TRUE
+        ),
+        (
+          2,
+          'Advertisement of Associate Professors',
+          'Applications invited for Associate Professor roles in engineering and sciences.',
+          'GBU/Admn/2026/02',
+          'teaching',
+          'associate',
+          '2026-04-11',
+          '2026-06-05',
+          TRUE
+        ),
+        (
+          3,
+          'Advertisement for Assistants',
+          'Recruitment notice for non-teaching assistant roles.',
+          'GBU/Admn/2026/03',
+          'non-teaching',
+          'assistants',
+          '2026-04-12',
+          '2026-05-20',
+          TRUE
+        ),
+        (
+          4,
+          'Advertisement for Research Interns',
+          'Openings for project and research interns under sponsored projects.',
+          'GBU/Admn/2026/04',
+          'project-research',
+          'interns',
+          '2026-04-12',
+          '2026-05-25',
+          TRUE
+        ),
+        (
+          5,
+          'Advertisement of Workers',
+          'Engagement notice for support and operations workers.',
+          'GBU/Admn/2026/05',
+          'others',
+          'workers',
+          '2026-04-13',
+          '2026-05-15',
+          TRUE
+        ),
+        (
+          6,
+          'Archived Professor Recruitment 2023',
+          'Archived teaching recruitment for Professor positions.',
+          'GBU/Admn/2023/01',
+          'teaching',
+          'professors',
+          '2023-01-10',
+          '2023-01-20',
+          TRUE
+        ),
+        (
+          7,
+          'Archived Associate Recruitment 2022',
+          'Archived teaching recruitment for Associate Professor positions.',
+          'GBU/Admn/2022/05',
+          'teaching',
+          'associate',
+          '2022-08-01',
+          '2022-08-12',
+          TRUE
+        ),
+        (
+          8,
+          'Archived Staff Recruitment 2021',
+          'Archived non-teaching staff recruitment cycle.',
+          'GBU/Admn/2021/12',
+          'non-teaching',
+          'assistants',
+          '2021-11-20',
+          '2021-12-05',
+          TRUE
+        );
+
+      INSERT INTO recruitment_documents
+        (
+        recruitment_id,
+        name,
+        document_type,
+        file_url,
+        description,
+        sort_order,
+        is_active
+        )
+      VALUES
+        (1, 'Extension Notice', 'notice', '/documents/recruitments/2026-professors-extension.pdf', 'Official extension notification', 1, TRUE),
+        (1, 'Detailed Advertisement', 'advertisement', '/documents/recruitments/2026-professors-detail.pdf', 'Complete job advertisement', 2, TRUE),
+        (1, 'Application Form (PDF)', 'application-pdf', '/documents/recruitments/2026-professors-form.pdf', 'Downloadable application form', 3, TRUE),
+        (2, 'Detailed Advertisement', 'advertisement', '/documents/recruitments/2026-associate-detail.pdf', 'Associate Professor recruitment advertisement', 1, TRUE),
+        (2, 'Application Form (Word)', 'application-word', '/documents/recruitments/2026-associate-form.docx', 'Editable application form', 2, TRUE),
+        (3, 'Detailed Advertisement', 'advertisement', '/documents/recruitments/2026-assistants-detail.pdf', 'Assistant recruitment advertisement', 1, TRUE),
+        (3, 'Application Form (PDF)', 'application-pdf', '/documents/recruitments/2026-assistants-form.pdf', 'Assistant application form', 2, TRUE),
+        (4, 'Detailed Advertisement', 'advertisement', '/documents/recruitments/2026-interns-detail.pdf', 'Research intern recruitment details', 1, TRUE),
+        (4, 'Application Form (Word)', 'application-word', '/documents/recruitments/2026-interns-form.docx', 'Intern application form', 2, TRUE),
+        (5, 'Detailed Advertisement', 'advertisement', '/documents/recruitments/2026-workers-detail.pdf', 'Worker recruitment details', 1, TRUE),
+        (6, 'Archive Notice', 'archive', '/documents/recruitments/2023-professors-archive.pdf', 'Archived recruitment notice', 1, TRUE),
+        (7, 'Archive Notice', 'archive', '/documents/recruitments/2022-associate-archive.pdf', 'Archived recruitment notice', 1, TRUE),
+        (8, 'Archive Notice', 'archive', '/documents/recruitments/2021-staff-archive.pdf', 'Archived recruitment notice', 1, TRUE);
+
       SELECT setval(
   pg_get_serial_sequence('events', 'id'),
   COALESCE((SELECT MAX(id) FROM events), 1),
@@ -317,6 +472,18 @@ CREATE TABLE news
       SELECT setval(
   pg_get_serial_sequence('tenders', 'id'),
   COALESCE((SELECT MAX(id) FROM tenders), 1),
+  true
+);
+
+      SELECT setval(
+  pg_get_serial_sequence('recruitments', 'id'),
+  COALESCE((SELECT MAX(id) FROM recruitments), 1),
+  true
+);
+
+      SELECT setval(
+  pg_get_serial_sequence('recruitment_documents', 'id'),
+  COALESCE((SELECT MAX(id) FROM recruitment_documents), 1),
   true
 );
 
@@ -363,5 +530,9 @@ END $$;
       FROM newsletters;
       SELECT COUNT(*) AS tenders_count
       FROM tenders;
+      SELECT COUNT(*) AS recruitments_count
+      FROM recruitments;
+      SELECT COUNT(*) AS recruitment_documents_count
+      FROM recruitment_documents;
 
       COMMIT;

@@ -4,8 +4,6 @@ const { successResponse, errorResponse } = require("../../utils/response");
 
 const router = express.Router();
 
-const ALLOWED_STATUS = new Set(["all", "current", "archived"]);
-
 const toDateOnlyString = (value) => {
   if (!value) {
     return null;
@@ -45,32 +43,6 @@ const mapTenderRow = (row) => {
 };
 
 router.get("/tenders", async (req, res) => {
-  const status = String(req.query.status || "all").toLowerCase();
-
-  if (!ALLOWED_STATUS.has(status)) {
-    return errorResponse(
-      res,
-      "Validation failed",
-      [
-        {
-          field: "status",
-          message: "status must be one of: all, current, archived",
-        },
-      ],
-      400,
-    );
-  }
-
-  const whereClauses = ["is_active = TRUE"];
-
-  if (status === "current") {
-    whereClauses.push("closing_date >= CURRENT_DATE");
-  }
-
-  if (status === "archived") {
-    whereClauses.push("closing_date < CURRENT_DATE");
-  }
-
   try {
     const result = await query(
       `
@@ -87,7 +59,7 @@ router.get("/tenders", async (req, res) => {
 				created_at,
 				updated_at
 			FROM tenders
-			WHERE ${whereClauses.join(" AND ")}
+      WHERE is_active = TRUE
 			ORDER BY closing_date ASC NULLS LAST, id DESC
 			`,
     );

@@ -23,7 +23,6 @@ router.use("/dashboard", dashboardRoutes);
 
 router.use("/bookings", bookingRoutes);
 router.use("/academics", academicRoutes);
-router.use("/", tendersRoutes);
 
 // Versioned API surface used by frontend integration.
 v1Router.use("/", academicRoutes);

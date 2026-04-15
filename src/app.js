@@ -5,7 +5,7 @@ const compression = require("compression");
 const { randomUUID } = require("crypto");
 const env = require("./config/env");
 const apiRoutes = require("./routes");
-const tendersRoutes = require("./modules/tenders");
+const recruitmentsRoutes = require("./modules/recruitments");
 const notFound = require("./middleware/notFound");
 const errorHandler = require("./middleware/errorHandler");
 const { apiRateLimiter } = require("./middleware/rateLimit");
@@ -30,8 +30,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Keep a direct path for frontend clients requesting /tenders without /api prefix.
-app.use("/", apiRateLimiter, tendersRoutes);
+// Keep a direct path for frontend clients requesting /recruitments without /api prefix.
+app.use("/", apiRateLimiter, recruitmentsRoutes);
 app.use("/api", apiRateLimiter, apiRoutes);
 app.use(notFound);
 app.use(errorHandler);
