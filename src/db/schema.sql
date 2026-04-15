@@ -250,25 +250,7 @@ CREATE TABLE news
       (5, 'Campus Life - Spring Moments', 'Campus Life', '2025', '2025-03-25', '["https://cdn.thedecorjournalindia.com/wp-content/uploads/2022/11/9_Modern-day-marvel-Gautam-Buddha-University-by-CP-Kukreja-architects-transpires-fresh-vibe-and-ancient-wisdom.jpg?lossy=1&resize=1920%2C1357&ssl=1&strip=all", "https://images.lifestyleasia.com/wp-content/uploads/sites/7/2022/11/03131617/1-inside-image-816-x-576-horizontal.jpeg", "https://hawmagazine.com/wp-content/uploads/2023/11/DSF8939-croped-1.jpg"]'::jsonb),
       (6, 'Tech Symposium 2025', 'Events', '2025', '2025-01-22', '["https://www.gbu.ac.in/Content/gbudata/incubation/Incubation_Pic9.jpg", "https://www.ic3ecsbhi.com/dsf8951%20copy.jpeg"]'::jsonb),
       (7, 'Robotics Workshop & Expo', 'Academic', '2024', '2024-08-10', '["https://www.ux4g.gov.in/assets/img/awareness-workshop/gbu-19-11-24/900x1.webp", "https://static.toiimg.com/thumb/msid-104795413%2Cwidth-1280%2Cheight-720%2Cresizemode-72/104795413.jpg"]'::jsonb),
-      (8, 'Faculty Development Program 2024', 'Academic', '2024', '2024-12-12', '["https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=600&q=80"]'::jsonb),
-      (9, 'Science & Innovation Fair', 'Academic', '2024', '2024-10-18', '["https://gburif.org/images/intro-carousel/gautam-buddha-university-3.jpg", "https://www.hindustantimes.com/ht-img/img/2024/09/05/1600x900/The-12-hour-Hackathon-was-held-at-the-Central-Comp_1725563537794.jpg"]'::jsonb),
-      (10, 'Inter-College Football League', 'Sports', '2024', '2024-09-20', '["https://www.gbu.ac.in/Content/img/sports/banner1.jpg"]'::jsonb),
-      (11, 'Winter Cultural Gala', 'Cultural', '2024', '2024-12-22', '["https://i.ytimg.com/vi/Aicd7XpY9eI/sd2.jpg?rs=AOn4CLCprID9Bk-ruT1eZpLbeLjahWmBSg&sqp=-oaymwEoCIAFEOAD8quKqQMcGADwAQH4AYwCgALgA4oCDAgAEAEYVCAgKH8wDw%3D%3D"]'::jsonb),
-      (12, 'Open Stage Night', 'Cultural', '2024', '2024-11-15', '["https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=600&q=80"]'::jsonb),
-      (13, 'Yoga & Wellness Retreat', 'Campus Life', '2024', '2024-07-05', '["https://www.gbu.ac.in/Content/gbudata/meditation/img/buddha28.jpg", "https://www.gbu.ac.in/Content/gbudata/meditation/img/buddha31.jpg"]'::jsonb),
-      (14, 'GBU Literary Festival', 'Cultural', '2024', '2024-09-15', '["https://sameer.mygbu.in/home/uploads/4.jpg"]'::jsonb),
-      (15, 'GBU Half Marathon 2025', 'Sports', '2025', '2025-01-28', '["https://www.gbu.ac.in/Content/img/sports/banner1.jpg"]'::jsonb),
-      (16, 'Inter-University Debate Championship', 'Academic', '2025', '2025-02-20', '["https://d8it4huxumps7.cloudfront.net/lambda-pdfs/opportunity-bannerImages/1743929131.png"]'::jsonb),
-      (17, 'Startup Expo & Innovation Fair', 'Events', '2025', '2025-03-18', '["https://images.unsplash.com/photo-1564866657310-2630c1f1df9f?auto=format&fit=crop&w=600&q=80"]'::jsonb),
-      (18, 'Women Empowerment Seminar', 'Academic', '2025', '2025-03-25', '["https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=600&q=80"]'::jsonb),
-      (19, 'Spring Tree Plantation Drive', 'Campus Life', '2025', '2025-04-05', '["https://images.unsplash.com/photo-1575202335306-5c8c54b6db1c?auto=format&fit=crop&w=600&q=80"]'::jsonb),
-      (20, 'GBU Alumni Meet & Reunion', 'Events', '2025', '2025-04-20', '["https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&w=600&q=80"]'::jsonb),
-      (21, 'Environmental Awareness Drive', 'Campus Life', '2025', '2025-05-02', '["https://images.unsplash.com/photo-1575202335306-5c8c54b6db1c?auto=format&fit=crop&w=600&q=80"]'::jsonb),
-      (22, 'Inter-College Hackathon', 'Academic', '2025', '2025-05-15', '["https://images.unsplash.com/photo-1537432376769-00aabc1ca45c?auto=format&fit=crop&w=600&q=80"]'::jsonb),
-      (23, 'Cultural Evening - Folk Fusion', 'Cultural', '2025', '2025-06-10', '["https://images.unsplash.com/photo-1587049352849-35263f2e96f5?auto=format&fit=crop&w=600&q=80"]'::jsonb),
-      (24, 'Photography Exhibition', 'Cultural', '2025', '2025-06-20', '["https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?auto=format&fit=crop&w=600&q=80"]'::jsonb),
-      (25, 'Summer Internship Orientation', 'Academic', '2025', '2025-07-01', '["https://biotechworldindia.in/wp-content/uploads/2023/11/IMG-20200620-WA0002-1024x705.jpg"]'::jsonb);
-
+      (8, 'Faculty Development Program 2024', 'Academic', '2024', '2024-12-12', '["https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=600&q=80"]'::jsonb);
       INSERT INTO tenders
         (
         id,
