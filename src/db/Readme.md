@@ -1,10 +1,12 @@
 # DB Setup and Troubleshooting Guide
 
-This guide helps you avoid recurring local DB issues for communications APIs:
+This guide helps you avoid recurring local DB issues for current frontend APIs:
 
 - /api/v1/announcements
 - /api/v1/news
 - /api/v1/events
+- /api/v1/tenders
+- /recruitments
 
 ## 1. Prerequisites
 
@@ -23,7 +25,7 @@ CREATE DATABASE "gbu-db";
 Use call operator `&` when path has spaces:
 
 ```powershell
-Set-Location "C:/Users/Priyanshu Sharma/Downloads/website/gbu-website-backend"
+Set-Location "<path-to>/gbu-website-backend"
 $env:PGPASSWORD = "<postgres_password>"
 & "C:/Program Files/PostgreSQL/18/bin/psql.exe" -h localhost -p 5432 -U postgres -d gbu-db -f "src/db/schema.sql"
 Remove-Item Env:PGPASSWORD
@@ -33,15 +35,20 @@ Remove-Item Env:PGPASSWORD
 
 ```powershell
 $env:PGPASSWORD = "<postgres_password>"
-& "C:/Program Files/PostgreSQL/18/bin/psql.exe" -h localhost -p 5432 -U postgres -d gbu-db -c "SELECT 'notices' AS table_name, COUNT(*) FROM notices UNION ALL SELECT 'news', COUNT(*) FROM news UNION ALL SELECT 'events', COUNT(*) FROM events;"
+& "C:/Program Files/PostgreSQL/18/bin/psql.exe" -h localhost -p 5432 -U postgres -d gbu-db -c "SELECT 'notices' AS table_name, COUNT(*) FROM notices UNION ALL SELECT 'news', COUNT(*) FROM news UNION ALL SELECT 'events', COUNT(*) FROM events UNION ALL SELECT 'media_gallery', COUNT(*) FROM media_gallery UNION ALL SELECT 'newsletters', COUNT(*) FROM newsletters UNION ALL SELECT 'tenders', COUNT(*) FROM tenders UNION ALL SELECT 'recruitments', COUNT(*) FROM recruitments UNION ALL SELECT 'recruitment_documents', COUNT(*) FROM recruitment_documents;"
 Remove-Item Env:PGPASSWORD
 ```
 
 Expected counts from current seed:
 
-- notices: 15
-- news: 15
-- events: 18
+- notices: 1
+- news: 1
+- events: 1
+- media_gallery: 8
+- newsletters: 1
+- tenders: 3
+- recruitments: 8
+- recruitment_documents: 13
 
 ## 4. Fix the Common 500 Error
 
@@ -54,6 +61,14 @@ Then grant permissions to backend role (`gbu-user` by default):
 ```powershell
 $env:PGPASSWORD = "<postgres_password>"
 & "C:/Program Files/PostgreSQL/18/bin/psql.exe" -h localhost -p 5432 -U postgres -d gbu-db -c "GRANT USAGE ON SCHEMA public TO \"gbu-user\"; GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.notices, public.news, public.events TO \"gbu-user\";"
+Remove-Item Env:PGPASSWORD
+```
+
+If you are also testing tenders/recruitments, grant on those tables as well:
+
+```powershell
+$env:PGPASSWORD = "<postgres_password>"
+& "C:/Program Files/PostgreSQL/18/bin/psql.exe" -h localhost -p 5432 -U postgres -d gbu-db -c "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.tenders, public.recruitments, public.recruitment_documents TO \"gbu-user\";"
 Remove-Item Env:PGPASSWORD
 ```
 
@@ -72,6 +87,8 @@ Start backend and test:
 ```powershell
 npm run dev
 curl.exe -i "http://localhost:3000/api/v1/announcements"
+curl.exe -i "http://localhost:3000/api/v1/tenders"
+curl.exe -i "http://localhost:3000/recruitments"
 ```
 
 Expected:

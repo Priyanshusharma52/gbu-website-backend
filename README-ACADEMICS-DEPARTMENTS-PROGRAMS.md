@@ -1,5 +1,16 @@
 # Backend Update README (Academics, Departments, Programs)
 
+## Scope Note (April 2026)
+
+This file documents only the Academics/Departments/Programs flow.
+Recent backend additions like tenders and recruitments are documented in `README.md`.
+
+Current route snapshot relevant to this file:
+
+- Base API: `/api`
+- Versioned routes: `/api/v1/...`
+- Academics endpoints in this file remain under `/api/v1`.
+
 ## 1) What was implemented
 
 Only the requested backend APIs and related entities were implemented.

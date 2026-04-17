@@ -1,19 +1,21 @@
-# Frontend Runbook (Announcements, News, Events)
+# Frontend Runbook (Current Backend APIs)
 
-This runbook is for frontend developers consuming communications APIs from backend.
+This runbook is for frontend developers consuming currently live backend APIs.
 
-Backend scope in this file:
+Backend scope in this file (current):
 
 1. notices
 2. news
 3. events
+4. tenders
+5. recruitments
 
 ## 1) Quick Start (Windows + PowerShell)
 
 1. Open terminal in backend folder:
 
 ```powershell
-Set-Location "C:/Users/Priyanshu Sharma/Downloads/website/gbu-website-backend"
+Set-Location "<path-to>/gbu-website-backend"
 ```
 
 2. Install dependencies:
@@ -72,6 +74,8 @@ Public endpoints:
 3. GET /api/v1/events
 4. GET /api/v1/events/:id
 5. GET /api/v1/events/:id/related
+6. GET /api/v1/tenders
+7. GET /recruitments
 
 ## 3) Recommended Frontend Calls
 
@@ -85,6 +89,10 @@ Use these depending on UI need:
    - GET /api/v1/announcements?limit=50&page=1
    - GET /api/v1/news?limit=50&page=1
    - GET /api/v1/events?limit=50&page=1
+3. Tenders page data:
+   - GET /api/v1/tenders
+4. Recruitments page data:
+   - GET /recruitments
 
 Notes:
 
@@ -93,7 +101,7 @@ Notes:
 
 ## 4) Response Envelope
 
-All list endpoints return this shape:
+All APIs return the standard envelope:
 
 ```json
 {
@@ -103,22 +111,31 @@ All list endpoints return this shape:
   "pagination": {
     "page": 1,
     "limit": 50,
-    "total": 18,
+    "total": 1,
     "pages": 1,
     "offset": 0
   }
 }
 ```
 
-For detail endpoints (`/events/:id`), `data` is an object.
+Notes:
+
+1. Communications list APIs may include `pagination`.
+2. `GET /api/v1/tenders` and `GET /recruitments` currently return grouped data under `data` without pagination.
+3. For detail endpoints (`/events/:id`), `data` is an object.
 
 ## 5) DB Verification After Schema Run
 
-Expected counts:
+Expected counts in current seed:
 
-1. notices = 15
-2. news = 15
-3. events = 18
+1. notices = 1
+2. news = 1
+3. events = 1
+4. media_gallery = 8
+5. newsletters = 1
+6. tenders = 3
+7. recruitments = 8
+8. recruitment_documents = 13
 
 Verify:
 
@@ -127,7 +144,17 @@ SELECT 'notices' AS table_name, COUNT(*) FROM notices
 UNION ALL
 SELECT 'news', COUNT(*) FROM news
 UNION ALL
-SELECT 'events', COUNT(*) FROM events;
+SELECT 'events', COUNT(*) FROM events
+UNION ALL
+SELECT 'media_gallery', COUNT(*) FROM media_gallery
+UNION ALL
+SELECT 'newsletters', COUNT(*) FROM newsletters
+UNION ALL
+SELECT 'tenders', COUNT(*) FROM tenders
+UNION ALL
+SELECT 'recruitments', COUNT(*) FROM recruitments
+UNION ALL
+SELECT 'recruitment_documents', COUNT(*) FROM recruitment_documents;
 ```
 
 ## 6) Smoke Test Flow
@@ -138,6 +165,8 @@ SELECT 'events', COUNT(*) FROM events;
 4. Pick an event id and test:
    - GET http://localhost:3000/api/v1/events/1
    - GET http://localhost:3000/api/v1/events/1/related?limit=4
+5. GET http://localhost:3000/api/v1/tenders
+6. GET http://localhost:3000/recruitments
 
 If all return `success: true` with non-empty data, frontend is connected correctly.
 
@@ -173,6 +202,9 @@ Replace `gbu-user` with the username used in `DATABASE_URL` if different.
 6. PowerShell shows `Unexpected token '-U'`
    - use call operator `&` before quoted `psql.exe` path
 
+7. `relation tenders does not exist` or `relation recruitments does not exist`
+   - schema not applied after latest backend updates
+
 ## 8) Minimal Fetch Example
 
 ```js
@@ -180,6 +212,20 @@ const baseUrl = "http://localhost:3000";
 
 async function getAnnouncements() {
   const response = await fetch(`${baseUrl}/api/v1/announcements`);
+  const json = await response.json();
+  if (!json.success) throw new Error(json.message);
+  return json.data;
+}
+
+async function getTenders() {
+  const response = await fetch(`${baseUrl}/api/v1/tenders`);
+  const json = await response.json();
+  if (!json.success) throw new Error(json.message);
+  return json.data;
+}
+
+async function getRecruitments() {
+  const response = await fetch(`${baseUrl}/recruitments`);
   const json = await response.json();
   if (!json.success) throw new Error(json.message);
   return json.data;

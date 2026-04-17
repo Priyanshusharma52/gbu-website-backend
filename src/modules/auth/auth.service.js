@@ -29,6 +29,14 @@ const users = [
   },
 ];
 
+const portalRoleMap = {
+  teacher: [ROLES.FACULTY],
+  faculty: [ROLES.FACULTY],
+  school: [ROLES.SCHOOL],
+  admin: [ROLES.SUPER_ADMIN],
+  super_admin: [ROLES.SUPER_ADMIN],
+};
+
 const signAccessToken = (user) => {
   return jwt.sign(
     {
@@ -54,7 +62,7 @@ const signRefreshToken = (user) => {
   );
 };
 
-const login = async (email, password) => {
+const login = async (email, password, portalRole) => {
   const user = users.find(
     (item) => item.email.toLowerCase() === String(email).toLowerCase(),
   );
@@ -67,6 +75,15 @@ const login = async (email, password) => {
 
   if (!isPasswordMatch) {
     return null;
+  }
+
+  if (portalRole) {
+    const roleKey = String(portalRole).toLowerCase();
+    const allowedRoles = portalRoleMap[roleKey];
+
+    if (!allowedRoles || !allowedRoles.includes(user.role)) {
+      return null;
+    }
   }
 
   const accessToken = signAccessToken(user);
