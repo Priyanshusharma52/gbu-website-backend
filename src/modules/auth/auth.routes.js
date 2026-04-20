@@ -1,18 +1,22 @@
-const express = require('express');
+const express = require("express");
 const {
-  loginHandler,
+  teacherLoginHandler,
+  schoolLoginHandler,
+  adminLoginHandler,
   refreshHandler,
   logoutHandler,
   meHandler,
-} = require('./auth.controller');
-const { authenticate } = require('../../middleware/auth');
-const { authRateLimiter } = require('../../middleware/rateLimit');
+} = require("./auth.controller");
+const { authenticate } = require("../../middleware/auth");
+const { authRateLimiter } = require("../../middleware/rateLimit");
 
 const router = express.Router();
 
-router.post('/login', authRateLimiter, loginHandler);
-router.post('/refresh', authRateLimiter, refreshHandler);
-router.post('/logout', authRateLimiter, logoutHandler);
-router.get('/me', authenticate, meHandler);
+router.post("/login/teacher", authRateLimiter, teacherLoginHandler);
+router.post("/login/school", authRateLimiter, schoolLoginHandler);
+router.post("/login/admin", authRateLimiter, adminLoginHandler);
+router.post("/refresh", authRateLimiter, refreshHandler);
+router.post("/logout", authRateLimiter, logoutHandler);
+router.get("/me", authenticate, meHandler);
 
 module.exports = router;

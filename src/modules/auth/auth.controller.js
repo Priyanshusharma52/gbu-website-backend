@@ -1,38 +1,75 @@
-const { login, refresh, logout } = require('./auth.service');
-const { successResponse, errorResponse } = require('../../utils/response');
+const { login, refresh, logout } = require("./auth.service");
+const { successResponse, errorResponse } = require("../../utils/response");
 
-const loginHandler = async (req, res) => {
-  const { email, password } = req.body;
-
+const validateCredentials = (email, password) => {
   if (!email || !password) {
-    return errorResponse(res, 'Validation failed', [
-      { field: 'email', message: 'Email is required' },
-      { field: 'password', message: 'Password is required' },
-    ], 400);
+    return [
+      { field: "email", message: "Email is required" },
+      { field: "password", message: "Password is required" },
+    ];
   }
 
-  const authResult = await login(email, password);
-
-  if (!authResult) {
-    return errorResponse(res, 'Invalid credentials', [
-      { field: 'credentials', message: 'Email or password is incorrect' },
-    ], 401);
-  }
-
-  return successResponse(res, 'Login successful', authResult, 200);
+  return null;
 };
+
+const createRoleLoginHandler = (portalRole, roleLabel) => {
+  return async (req, res) => {
+    const { email, password } = req.body;
+
+    const validationErrors = validateCredentials(email, password);
+
+    if (validationErrors) {
+      return errorResponse(res, "Validation failed", validationErrors, 400);
+    }
+
+    const authResult = await login(email, password, portalRole);
+
+    if (!authResult) {
+      return errorResponse(
+        res,
+        "Invalid credentials",
+        [
+          {
+            field: "credentials",
+            message: `Email or password is incorrect for ${roleLabel} login`,
+          },
+        ],
+        401,
+      );
+    }
+
+    return successResponse(
+      res,
+      `${roleLabel} login successful`,
+      authResult,
+      200,
+    );
+  };
+};
+
+const teacherLoginHandler = createRoleLoginHandler("teacher", "Teacher");
+const schoolLoginHandler = createRoleLoginHandler("school", "School");
+const adminLoginHandler = createRoleLoginHandler("admin", "Admin");
 
 const refreshHandler = (req, res) => {
   const { refreshToken } = req.body;
   const tokenResult = refresh(refreshToken);
 
   if (!tokenResult) {
-    return errorResponse(res, 'Invalid refresh token', [
-      { field: 'refreshToken', message: 'Refresh token is invalid or expired' },
-    ], 401);
+    return errorResponse(
+      res,
+      "Invalid refresh token",
+      [
+        {
+          field: "refreshToken",
+          message: "Refresh token is invalid or expired",
+        },
+      ],
+      401,
+    );
   }
 
-  return successResponse(res, 'Access token refreshed', tokenResult, 200);
+  return successResponse(res, "Access token refreshed", tokenResult, 200);
 };
 
 const logoutHandler = (req, res) => {
@@ -40,16 +77,19 @@ const logoutHandler = (req, res) => {
   const isRemoved = logout(refreshToken);
 
   if (!isRemoved) {
-    return errorResponse(res, 'Invalid refresh token', [
-      { field: 'refreshToken', message: 'Refresh token is invalid' },
-    ], 400);
+    return errorResponse(
+      res,
+      "Invalid refresh token",
+      [{ field: "refreshToken", message: "Refresh token is invalid" }],
+      400,
+    );
   }
 
-  return successResponse(res, 'Logged out successfully', {}, 200);
+  return successResponse(res, "Logged out successfully", {}, 200);
 };
 
 const meHandler = (req, res) => {
-  return successResponse(res, 'User profile fetched', {
+  return successResponse(res, "User profile fetched", {
     id: req.user.sub,
     email: req.user.email,
     role: req.user.role,
@@ -58,7 +98,9 @@ const meHandler = (req, res) => {
 };
 
 module.exports = {
-  loginHandler,
+  teacherLoginHandler,
+  schoolLoginHandler,
+  adminLoginHandler,
   refreshHandler,
   logoutHandler,
   meHandler,

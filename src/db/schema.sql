@@ -109,6 +109,50 @@ CREATE TABLE news
       ::jsonb
 );
 
+      CREATE TABLE tenders
+      (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        reference_no VARCHAR(100) UNIQUE,
+        category VARCHAR(100),
+        tender_type VARCHAR(20) NOT NULL DEFAULT 'RFP',
+        published_date DATE,
+        closing_date DATE NOT NULL,
+        document_url TEXT NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE recruitments
+      (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        reference_no VARCHAR(100) UNIQUE NOT NULL,
+        category VARCHAR(50) NOT NULL,
+        tab_id VARCHAR(50) NOT NULL,
+        published_date DATE,
+        closing_date DATE NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE recruitment_documents
+      (
+        id SERIAL PRIMARY KEY,
+        recruitment_id INT NOT NULL REFERENCES recruitments(id) ON DELETE CASCADE,
+        name VARCHAR(150) NOT NULL,
+        document_type VARCHAR(50) NOT NULL,
+        file_url TEXT NOT NULL,
+        description TEXT,
+        sort_order INT NOT NULL DEFAULT 1,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
       -- =====================================
       -- INSERT ONLY 1 RECORD PER CORE TABLE
       -- =====================================
@@ -234,24 +278,184 @@ CREATE TABLE news
       (5, 'Campus Life - Spring Moments', 'Campus Life', '2025', '2025-03-25', '["https://cdn.thedecorjournalindia.com/wp-content/uploads/2022/11/9_Modern-day-marvel-Gautam-Buddha-University-by-CP-Kukreja-architects-transpires-fresh-vibe-and-ancient-wisdom.jpg?lossy=1&resize=1920%2C1357&ssl=1&strip=all", "https://images.lifestyleasia.com/wp-content/uploads/sites/7/2022/11/03131617/1-inside-image-816-x-576-horizontal.jpeg", "https://hawmagazine.com/wp-content/uploads/2023/11/DSF8939-croped-1.jpg"]'::jsonb),
       (6, 'Tech Symposium 2025', 'Events', '2025', '2025-01-22', '["https://www.gbu.ac.in/Content/gbudata/incubation/Incubation_Pic9.jpg", "https://www.ic3ecsbhi.com/dsf8951%20copy.jpeg"]'::jsonb),
       (7, 'Robotics Workshop & Expo', 'Academic', '2024', '2024-08-10', '["https://www.ux4g.gov.in/assets/img/awareness-workshop/gbu-19-11-24/900x1.webp", "https://static.toiimg.com/thumb/msid-104795413%2Cwidth-1280%2Cheight-720%2Cresizemode-72/104795413.jpg"]'::jsonb),
-      (8, 'Faculty Development Program 2024', 'Academic', '2024', '2024-12-12', '["https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=600&q=80"]'::jsonb),
-      (9, 'Science & Innovation Fair', 'Academic', '2024', '2024-10-18', '["https://gburif.org/images/intro-carousel/gautam-buddha-university-3.jpg", "https://www.hindustantimes.com/ht-img/img/2024/09/05/1600x900/The-12-hour-Hackathon-was-held-at-the-Central-Comp_1725563537794.jpg"]'::jsonb),
-      (10, 'Inter-College Football League', 'Sports', '2024', '2024-09-20', '["https://www.gbu.ac.in/Content/img/sports/banner1.jpg"]'::jsonb),
-      (11, 'Winter Cultural Gala', 'Cultural', '2024', '2024-12-22', '["https://i.ytimg.com/vi/Aicd7XpY9eI/sd2.jpg?rs=AOn4CLCprID9Bk-ruT1eZpLbeLjahWmBSg&sqp=-oaymwEoCIAFEOAD8quKqQMcGADwAQH4AYwCgALgA4oCDAgAEAEYVCAgKH8wDw%3D%3D"]'::jsonb),
-      (12, 'Open Stage Night', 'Cultural', '2024', '2024-11-15', '["https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=600&q=80"]'::jsonb),
-      (13, 'Yoga & Wellness Retreat', 'Campus Life', '2024', '2024-07-05', '["https://www.gbu.ac.in/Content/gbudata/meditation/img/buddha28.jpg", "https://www.gbu.ac.in/Content/gbudata/meditation/img/buddha31.jpg"]'::jsonb),
-      (14, 'GBU Literary Festival', 'Cultural', '2024', '2024-09-15', '["https://sameer.mygbu.in/home/uploads/4.jpg"]'::jsonb),
-      (15, 'GBU Half Marathon 2025', 'Sports', '2025', '2025-01-28', '["https://www.gbu.ac.in/Content/img/sports/banner1.jpg"]'::jsonb),
-      (16, 'Inter-University Debate Championship', 'Academic', '2025', '2025-02-20', '["https://d8it4huxumps7.cloudfront.net/lambda-pdfs/opportunity-bannerImages/1743929131.png"]'::jsonb),
-      (17, 'Startup Expo & Innovation Fair', 'Events', '2025', '2025-03-18', '["https://images.unsplash.com/photo-1564866657310-2630c1f1df9f?auto=format&fit=crop&w=600&q=80"]'::jsonb),
-      (18, 'Women Empowerment Seminar', 'Academic', '2025', '2025-03-25', '["https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=600&q=80"]'::jsonb),
-      (19, 'Spring Tree Plantation Drive', 'Campus Life', '2025', '2025-04-05', '["https://images.unsplash.com/photo-1575202335306-5c8c54b6db1c?auto=format&fit=crop&w=600&q=80"]'::jsonb),
-      (20, 'GBU Alumni Meet & Reunion', 'Events', '2025', '2025-04-20', '["https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&w=600&q=80"]'::jsonb),
-      (21, 'Environmental Awareness Drive', 'Campus Life', '2025', '2025-05-02', '["https://images.unsplash.com/photo-1575202335306-5c8c54b6db1c?auto=format&fit=crop&w=600&q=80"]'::jsonb),
-      (22, 'Inter-College Hackathon', 'Academic', '2025', '2025-05-15', '["https://images.unsplash.com/photo-1537432376769-00aabc1ca45c?auto=format&fit=crop&w=600&q=80"]'::jsonb),
-      (23, 'Cultural Evening - Folk Fusion', 'Cultural', '2025', '2025-06-10', '["https://images.unsplash.com/photo-1587049352849-35263f2e96f5?auto=format&fit=crop&w=600&q=80"]'::jsonb),
-      (24, 'Photography Exhibition', 'Cultural', '2025', '2025-06-20', '["https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?auto=format&fit=crop&w=600&q=80"]'::jsonb),
-      (25, 'Summer Internship Orientation', 'Academic', '2025', '2025-07-01', '["https://biotechworldindia.in/wp-content/uploads/2023/11/IMG-20200620-WA0002-1024x705.jpg"]'::jsonb);
+      (8, 'Faculty Development Program 2024', 'Academic', '2024', '2024-12-12', '["https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=600&q=80"]'::jsonb);
+      INSERT INTO tenders
+        (
+        id,
+        title,
+        description,
+        reference_no,
+        category,
+        tender_type,
+        published_date,
+        closing_date,
+        document_url,
+        is_active
+        )
+      VALUES
+        (
+          1,
+          'Supply of IT Equipment and Software Licenses',
+          'Procurement of desktops, networking hardware, and software licenses for the academic block.',
+          'GBU/TND/2026/001',
+          'Information Technology',
+          'RFQ',
+          '2026-04-01',
+          '2026-05-10',
+          '/documents/tender-001.pdf',
+          TRUE
+        ),
+        (
+          2,
+          'Construction of Water Treatment Facility',
+          'Design, construction, and commissioning of a campus water treatment plant.',
+          'GBU/TND/2026/002',
+          'Infrastructure',
+          'RFP',
+          '2026-03-20',
+          '2026-04-05',
+          '/documents/tender-002.pdf',
+          TRUE
+        ),
+        (
+          3,
+          'AMC for HVAC Systems',
+          'Annual maintenance contract for HVAC units across hostels and teaching blocks.',
+          'GBU/TND/2026/003',
+          'Maintenance',
+          'RFE',
+          '2026-01-10',
+          '2026-02-15',
+          '/documents/tender-003.pdf',
+          TRUE
+        );
+
+      INSERT INTO recruitments
+        (
+        id,
+        title,
+        description,
+        reference_no,
+        category,
+        tab_id,
+        published_date,
+        closing_date,
+        is_active
+        )
+      VALUES
+        (
+          1,
+          'Advertisement of Professors',
+          'Inviting applications for Professor positions across multiple schools.',
+          'GBU/Admn/2026/01',
+          'teaching',
+          'professors',
+          '2026-04-10',
+          '2026-05-31',
+          TRUE
+        ),
+        (
+          2,
+          'Advertisement of Associate Professors',
+          'Applications invited for Associate Professor roles in engineering and sciences.',
+          'GBU/Admn/2026/02',
+          'teaching',
+          'associate',
+          '2026-04-11',
+          '2026-06-05',
+          TRUE
+        ),
+        (
+          3,
+          'Advertisement for Assistants',
+          'Recruitment notice for non-teaching assistant roles.',
+          'GBU/Admn/2026/03',
+          'non-teaching',
+          'assistants',
+          '2026-04-12',
+          '2026-05-20',
+          TRUE
+        ),
+        (
+          4,
+          'Advertisement for Research Interns',
+          'Openings for project and research interns under sponsored projects.',
+          'GBU/Admn/2026/04',
+          'project-research',
+          'interns',
+          '2026-04-12',
+          '2026-05-25',
+          TRUE
+        ),
+        (
+          5,
+          'Advertisement of Workers',
+          'Engagement notice for support and operations workers.',
+          'GBU/Admn/2026/05',
+          'others',
+          'workers',
+          '2026-04-13',
+          '2026-05-15',
+          TRUE
+        ),
+        (
+          6,
+          'Archived Professor Recruitment 2023',
+          'Archived teaching recruitment for Professor positions.',
+          'GBU/Admn/2023/01',
+          'teaching',
+          'professors',
+          '2023-01-10',
+          '2023-01-20',
+          TRUE
+        ),
+        (
+          7,
+          'Archived Associate Recruitment 2022',
+          'Archived teaching recruitment for Associate Professor positions.',
+          'GBU/Admn/2022/05',
+          'teaching',
+          'associate',
+          '2022-08-01',
+          '2022-08-12',
+          TRUE
+        ),
+        (
+          8,
+          'Archived Staff Recruitment 2021',
+          'Archived non-teaching staff recruitment cycle.',
+          'GBU/Admn/2021/12',
+          'non-teaching',
+          'assistants',
+          '2021-11-20',
+          '2021-12-05',
+          TRUE
+        );
+
+      INSERT INTO recruitment_documents
+        (
+        recruitment_id,
+        name,
+        document_type,
+        file_url,
+        description,
+        sort_order,
+        is_active
+        )
+      VALUES
+        (1, 'Extension Notice', 'notice', '/documents/recruitments/2026-professors-extension.pdf', 'Official extension notification', 1, TRUE),
+        (1, 'Detailed Advertisement', 'advertisement', '/documents/recruitments/2026-professors-detail.pdf', 'Complete job advertisement', 2, TRUE),
+        (1, 'Application Form (PDF)', 'application-pdf', '/documents/recruitments/2026-professors-form.pdf', 'Downloadable application form', 3, TRUE),
+        (2, 'Detailed Advertisement', 'advertisement', '/documents/recruitments/2026-associate-detail.pdf', 'Associate Professor recruitment advertisement', 1, TRUE),
+        (2, 'Application Form (Word)', 'application-word', '/documents/recruitments/2026-associate-form.docx', 'Editable application form', 2, TRUE),
+        (3, 'Detailed Advertisement', 'advertisement', '/documents/recruitments/2026-assistants-detail.pdf', 'Assistant recruitment advertisement', 1, TRUE),
+        (3, 'Application Form (PDF)', 'application-pdf', '/documents/recruitments/2026-assistants-form.pdf', 'Assistant application form', 2, TRUE),
+        (4, 'Detailed Advertisement', 'advertisement', '/documents/recruitments/2026-interns-detail.pdf', 'Research intern recruitment details', 1, TRUE),
+        (4, 'Application Form (Word)', 'application-word', '/documents/recruitments/2026-interns-form.docx', 'Intern application form', 2, TRUE),
+        (5, 'Detailed Advertisement', 'advertisement', '/documents/recruitments/2026-workers-detail.pdf', 'Worker recruitment details', 1, TRUE),
+        (6, 'Archive Notice', 'archive', '/documents/recruitments/2023-professors-archive.pdf', 'Archived recruitment notice', 1, TRUE),
+        (7, 'Archive Notice', 'archive', '/documents/recruitments/2022-associate-archive.pdf', 'Archived recruitment notice', 1, TRUE),
+        (8, 'Archive Notice', 'archive', '/documents/recruitments/2021-staff-archive.pdf', 'Archived recruitment notice', 1, TRUE);
 
       SELECT setval(
   pg_get_serial_sequence('events', 'id'),
@@ -262,6 +466,24 @@ CREATE TABLE news
       SELECT setval(
   pg_get_serial_sequence('media_gallery', 'id'),
   COALESCE((SELECT MAX(id) FROM media_gallery), 1),
+  true
+);
+
+      SELECT setval(
+  pg_get_serial_sequence('tenders', 'id'),
+  COALESCE((SELECT MAX(id) FROM tenders), 1),
+  true
+);
+
+      SELECT setval(
+  pg_get_serial_sequence('recruitments', 'id'),
+  COALESCE((SELECT MAX(id) FROM recruitments), 1),
+  true
+);
+
+      SELECT setval(
+  pg_get_serial_sequence('recruitment_documents', 'id'),
+  COALESCE((SELECT MAX(id) FROM recruitment_documents), 1),
   true
 );
 
@@ -306,5 +528,11 @@ END $$;
       FROM media_gallery;
       SELECT COUNT(*) AS newsletters_count
       FROM newsletters;
+      SELECT COUNT(*) AS tenders_count
+      FROM tenders;
+      SELECT COUNT(*) AS recruitments_count
+      FROM recruitments;
+      SELECT COUNT(*) AS recruitment_documents_count
+      FROM recruitment_documents;
 
       COMMIT;
