@@ -3,6 +3,13 @@ const { query } = require("../../config/db");
 const { successResponse, errorResponse } = require("../../utils/response");
 
 const router = express.Router();
+const CACHE_TTL_MS = Number.parseInt(process.env.API_CACHE_TTL_MS || "60000", 10);
+const RESPONSE_CACHE_CONTROL = "public, max-age=30, stale-while-revalidate=120";
+
+let tendersCache = {
+  payload: null,
+  expiresAt: 0,
+};
 
 const toDateOnlyString = (value) => {
   if (!value) {
@@ -19,11 +26,6 @@ const toDateOnlyString = (value) => {
 
 const mapTenderRow = (row) => {
   const closingDate = toDateOnlyString(row.closing_date);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const parsedClosingDate = closingDate ? new Date(closingDate) : null;
-  const isArchived = parsedClosingDate ? parsedClosingDate < today : false;
 
   return {
     id: row.id,
@@ -35,8 +37,8 @@ const mapTenderRow = (row) => {
     publishedDate: toDateOnlyString(row.published_date),
     closingDate,
     documentUrl: row.document_url,
-    isArchived,
-    status: isArchived ? "archived" : "current",
+    isArchived: row.is_archived,
+    status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -44,6 +46,11 @@ const mapTenderRow = (row) => {
 
 router.get("/tenders", async (req, res) => {
   try {
+    if (tendersCache.payload && Date.now() < tendersCache.expiresAt) {
+      res.set("Cache-Control", RESPONSE_CACHE_CONTROL);
+      return successResponse(res, "Tenders fetched successfully", tendersCache.payload);
+    }
+
     const result = await query(
       `
 			SELECT
@@ -56,6 +63,11 @@ router.get("/tenders", async (req, res) => {
 				published_date,
 				closing_date,
 				document_url,
+        (closing_date IS NOT NULL AND closing_date < CURRENT_DATE) AS is_archived,
+        CASE
+          WHEN closing_date IS NOT NULL AND closing_date < CURRENT_DATE THEN 'archived'
+          ELSE 'current'
+        END AS status,
 				created_at,
 				updated_at
 			FROM tenders
@@ -68,7 +80,7 @@ router.get("/tenders", async (req, res) => {
     const current = items.filter((item) => item.status === "current");
     const archived = items.filter((item) => item.status === "archived");
 
-    return successResponse(res, "Tenders fetched successfully", {
+    const payload = {
       items,
       current,
       archived,
@@ -77,7 +89,16 @@ router.get("/tenders", async (req, res) => {
         currentCount: current.length,
         archivedCount: archived.length,
       },
-    });
+    };
+
+    tendersCache = {
+      payload,
+      expiresAt: Date.now() + CACHE_TTL_MS,
+    };
+
+    res.set("Cache-Control", RESPONSE_CACHE_CONTROL);
+
+    return successResponse(res, "Tenders fetched successfully", payload);
   } catch (error) {
     if (error.code === "42P01") {
       return errorResponse(

@@ -154,6 +154,18 @@ CREATE TABLE news
       );
 
       -- =====================================
+      -- PERFORMANCE INDEXES
+      -- =====================================
+      CREATE INDEX IF NOT EXISTS idx_tenders_active_closing_date
+      ON tenders(is_active, closing_date DESC, id DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_recruitments_active_closing_published
+      ON recruitments(is_active, closing_date DESC, published_date DESC, id DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_recruitment_documents_recruitment_active_sort
+      ON recruitment_documents(recruitment_id, is_active, sort_order, id);
+
+      -- =====================================
       -- INSERT ONLY 1 RECORD PER CORE TABLE
       -- =====================================
       INSERT INTO notices

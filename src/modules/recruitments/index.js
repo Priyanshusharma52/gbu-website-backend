@@ -3,6 +3,13 @@ const { query } = require("../../config/db");
 const { successResponse, errorResponse } = require("../../utils/response");
 
 const router = express.Router();
+const CACHE_TTL_MS = Number.parseInt(process.env.API_CACHE_TTL_MS || "60000", 10);
+const RESPONSE_CACHE_CONTROL = "public, max-age=30, stale-while-revalidate=120";
+
+let recruitmentsCache = {
+  payload: null,
+  expiresAt: 0,
+};
 
 const toDateOnlyString = (value) => {
   if (!value) {
@@ -20,12 +27,6 @@ const toDateOnlyString = (value) => {
 const mapRecruitmentRow = (row) => {
   const closingDate = toDateOnlyString(row.closing_date);
   const publishedDate = toDateOnlyString(row.published_date);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const parsedClosingDate = closingDate ? new Date(closingDate) : null;
-  const isArchived = parsedClosingDate ? parsedClosingDate < today : false;
-  const effectiveDate = closingDate || publishedDate;
 
   return {
     id: row.id,
@@ -36,9 +37,9 @@ const mapRecruitmentRow = (row) => {
     tabId: row.tab_id,
     publishedDate,
     closingDate,
-    year: effectiveDate ? Number.parseInt(effectiveDate.slice(0, 4), 10) : null,
-    isArchived,
-    status: isArchived ? "archived" : "current",
+    year: row.year,
+    isArchived: row.is_archived,
+    status: row.status,
     documents: Array.isArray(row.documents) ? row.documents : [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -69,6 +70,15 @@ const groupItemsByYear = (items) => {
 
 const listRecruitments = async (req, res) => {
   try {
+    if (recruitmentsCache.payload && Date.now() < recruitmentsCache.expiresAt) {
+      res.set("Cache-Control", RESPONSE_CACHE_CONTROL);
+      return successResponse(
+        res,
+        "Recruitments fetched successfully",
+        recruitmentsCache.payload,
+      );
+    }
+
     const result = await query(
       `
 			SELECT
@@ -80,6 +90,12 @@ const listRecruitments = async (req, res) => {
 				r.tab_id,
 				r.published_date,
 				r.closing_date,
+        EXTRACT(YEAR FROM COALESCE(r.closing_date, r.published_date))::int AS year,
+        (r.closing_date IS NOT NULL AND r.closing_date < CURRENT_DATE) AS is_archived,
+        CASE
+          WHEN r.closing_date IS NOT NULL AND r.closing_date < CURRENT_DATE THEN 'archived'
+          ELSE 'current'
+        END AS status,
 				r.created_at,
 				r.updated_at,
 				COALESCE(
@@ -110,7 +126,7 @@ const listRecruitments = async (req, res) => {
     const current = items.filter((item) => item.status === "current");
     const archived = items.filter((item) => item.status === "archived");
 
-    return successResponse(res, "Recruitments fetched successfully", {
+    const payload = {
       items,
       current,
       archived,
@@ -121,7 +137,16 @@ const listRecruitments = async (req, res) => {
         currentCount: current.length,
         archivedCount: archived.length,
       },
-    });
+    };
+
+    recruitmentsCache = {
+      payload,
+      expiresAt: Date.now() + CACHE_TTL_MS,
+    };
+
+    res.set("Cache-Control", RESPONSE_CACHE_CONTROL);
+
+    return successResponse(res, "Recruitments fetched successfully", payload);
   } catch (error) {
     if (error.code === "42P01") {
       return errorResponse(
