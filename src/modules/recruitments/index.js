@@ -5,10 +5,24 @@ const { successResponse, errorResponse } = require("../../utils/response");
 const router = express.Router();
 const CACHE_TTL_MS = Number.parseInt(process.env.API_CACHE_TTL_MS || "60000", 10);
 const RESPONSE_CACHE_CONTROL = "public, max-age=30, stale-while-revalidate=120";
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 100;
 
-let recruitmentsCache = {
-  payload: null,
-  expiresAt: 0,
+const recruitmentsCacheByKey = new Map();
+
+const toPositiveInt = (value, fallback) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const toBool = (value, fallback = false) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return fallback;
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1" || normalized === "yes") return true;
+  if (normalized === "false" || normalized === "0" || normalized === "no") return false;
+  return fallback;
 };
 
 const toDateOnlyString = (value) => {
@@ -70,14 +84,44 @@ const groupItemsByYear = (items) => {
 
 const listRecruitments = async (req, res) => {
   try {
-    if (recruitmentsCache.payload && Date.now() < recruitmentsCache.expiresAt) {
+    const page = toPositiveInt(req.query.page, 1);
+    const limit = Math.min(toPositiveInt(req.query.limit, DEFAULT_LIMIT), MAX_LIMIT);
+    const offset = (page - 1) * limit;
+    const status = String(req.query.status || "all").trim().toLowerCase();
+    const includeGrouped = toBool(req.query.grouped, false);
+
+    const statusFilterSql =
+      status === "current"
+        ? "AND (r.closing_date IS NULL OR r.closing_date >= CURRENT_DATE)"
+        : status === "archived"
+          ? "AND (r.closing_date IS NOT NULL AND r.closing_date < CURRENT_DATE)"
+          : "";
+
+    const cacheKey = JSON.stringify({ page, limit, status, includeGrouped });
+    const cached = recruitmentsCacheByKey.get(cacheKey);
+
+    if (cached && Date.now() < cached.expiresAt) {
       res.set("Cache-Control", RESPONSE_CACHE_CONTROL);
       return successResponse(
         res,
         "Recruitments fetched successfully",
-        recruitmentsCache.payload,
+        cached.payload,
       );
     }
+
+    const totalCountResult = await query(
+      `
+      SELECT COUNT(*)::int AS total
+      FROM recruitments r
+      WHERE r.is_active = TRUE
+      ${statusFilterSql}
+      `,
+    );
+
+    const total = totalCountResult.rows[0]?.total || 0;
+    const pages = total === 0 ? 1 : Math.ceil(total / limit);
+    const safePage = Math.min(page, pages);
+    const safeOffset = (safePage - 1) * limit;
 
     const result = await query(
       `
@@ -117,32 +161,43 @@ const listRecruitments = async (req, res) => {
 				ON d.recruitment_id = r.id
 				AND d.is_active = TRUE
       WHERE r.is_active = TRUE
+			${statusFilterSql}
 			GROUP BY r.id
 			ORDER BY r.closing_date DESC NULLS LAST, r.published_date DESC NULLS LAST, r.id DESC
+			LIMIT $1 OFFSET $2
 			`,
+      [limit, safeOffset],
     );
 
     const items = result.rows.map(mapRecruitmentRow);
-    const current = items.filter((item) => item.status === "current");
-    const archived = items.filter((item) => item.status === "archived");
 
     const payload = {
       items,
-      current,
-      archived,
-      currentByCategory: groupItemsByCategory(current),
-      archivedByYear: groupItemsByYear(archived),
       meta: {
-        total: items.length,
-        currentCount: current.length,
-        archivedCount: archived.length,
+        page: safePage,
+        limit,
+        total,
+        pages,
+        offset: safeOffset,
       },
     };
 
-    recruitmentsCache = {
+    if (includeGrouped) {
+      const current = items.filter((item) => item.status === "current");
+      const archived = items.filter((item) => item.status === "archived");
+
+      payload.current = current;
+      payload.archived = archived;
+      payload.currentByCategory = groupItemsByCategory(current);
+      payload.archivedByYear = groupItemsByYear(archived);
+      payload.meta.currentCount = current.length;
+      payload.meta.archivedCount = archived.length;
+    }
+
+    recruitmentsCacheByKey.set(cacheKey, {
       payload,
       expiresAt: Date.now() + CACHE_TTL_MS,
-    };
+    });
 
     res.set("Cache-Control", RESPONSE_CACHE_CONTROL);
 

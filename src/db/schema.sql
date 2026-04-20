@@ -153,6 +153,43 @@ CREATE TABLE news
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
 
+      CREATE TABLE users
+      (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(120) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        role VARCHAR(30) NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        email_verified BOOLEAN NOT NULL DEFAULT TRUE,
+        password_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE auth_refresh_tokens
+      (
+        id SERIAL PRIMARY KEY,
+        user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash VARCHAR(128) NOT NULL UNIQUE,
+        user_agent TEXT,
+        ip_address VARCHAR(100),
+        expires_at TIMESTAMP NOT NULL,
+        revoked_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE password_reset_otps
+      (
+        id SERIAL PRIMARY KEY,
+        user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        otp_hash VARCHAR(128) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        attempts INT NOT NULL DEFAULT 0,
+        consumed_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
       -- =====================================
       -- PERFORMANCE INDEXES
       -- =====================================
@@ -164,6 +201,15 @@ CREATE TABLE news
 
       CREATE INDEX IF NOT EXISTS idx_recruitment_documents_recruitment_active_sort
       ON recruitment_documents(recruitment_id, is_active, sort_order, id);
+
+      CREATE INDEX IF NOT EXISTS idx_users_email
+      ON users((LOWER(email)));
+
+      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_active
+      ON auth_refresh_tokens(user_id, revoked_at, expires_at);
+
+      CREATE INDEX IF NOT EXISTS idx_password_reset_otps_user_active
+      ON password_reset_otps(user_id, consumed_at, expires_at, created_at DESC);
 
       -- =====================================
       -- INSERT ONLY 1 RECORD PER CORE TABLE
@@ -469,6 +515,34 @@ CREATE TABLE news
         (7, 'Archive Notice', 'archive', '/documents/recruitments/2022-associate-archive.pdf', 'Archived recruitment notice', 1, TRUE),
         (8, 'Archive Notice', 'archive', '/documents/recruitments/2021-staff-archive.pdf', 'Archived recruitment notice', 1, TRUE);
 
+      INSERT INTO users
+        (name, email, role, password_hash, is_active, email_verified)
+      VALUES
+        (
+          'Super Admin',
+          'admin@gbu.ac.in',
+          'super_admin',
+          '$2a$12$dEzir0NPhvUD3RZ5QAzeSO2213TvpwDlvBcMwtaRqLkQi484bAJ3e',
+          TRUE,
+          TRUE
+        ),
+        (
+          'School User',
+          'school@gbu.ac.in',
+          'school',
+          '$2a$12$eJxabWOjjEIk3ew/4cTOieuB8Lriq8CG7wxz2z/QD24cb5en1dFb2',
+          TRUE,
+          TRUE
+        ),
+        (
+          'Faculty User',
+          'faculty@gbu.ac.in',
+          'faculty',
+          '$2a$12$EBWLo4rfeBJMD9LEkqCyZu/tuZNWyMYLVn1yNcwKMxnXV0g5HPlN.',
+          TRUE,
+          TRUE
+        );
+
       SELECT setval(
   pg_get_serial_sequence('events', 'id'),
   COALESCE((SELECT MAX(id) FROM events), 1),
@@ -496,6 +570,24 @@ CREATE TABLE news
       SELECT setval(
   pg_get_serial_sequence('recruitment_documents', 'id'),
   COALESCE((SELECT MAX(id) FROM recruitment_documents), 1),
+  true
+);
+
+      SELECT setval(
+  pg_get_serial_sequence('users', 'id'),
+  COALESCE((SELECT MAX(id) FROM users), 1),
+  true
+);
+
+      SELECT setval(
+  pg_get_serial_sequence('auth_refresh_tokens', 'id'),
+  COALESCE((SELECT MAX(id) FROM auth_refresh_tokens), 1),
+  true
+);
+
+      SELECT setval(
+  pg_get_serial_sequence('password_reset_otps', 'id'),
+  COALESCE((SELECT MAX(id) FROM password_reset_otps), 1),
   true
 );
 
@@ -546,5 +638,11 @@ END $$;
       FROM recruitments;
       SELECT COUNT(*) AS recruitment_documents_count
       FROM recruitment_documents;
+      SELECT COUNT(*) AS users_count
+      FROM users;
+      SELECT COUNT(*) AS auth_refresh_tokens_count
+      FROM auth_refresh_tokens;
+      SELECT COUNT(*) AS password_reset_otps_count
+      FROM password_reset_otps;
 
       COMMIT;

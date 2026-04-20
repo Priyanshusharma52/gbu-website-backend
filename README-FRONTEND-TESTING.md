@@ -4,6 +4,7 @@ This runbook is for frontend developers consuming currently live backend APIs.
 
 Backend scope in this file (current):
 
+1. auth (role-based + OTP password reset)
 1. notices
 2. news
 3. events
@@ -77,6 +78,23 @@ Public endpoints:
 6. GET /api/v1/tenders
 7. GET /recruitments
 
+Auth endpoints:
+
+1. POST /api/auth/login/teacher
+2. POST /api/auth/login/school
+3. POST /api/auth/login/admin
+4. GET /api/auth/me (Bearer token required)
+5. POST /api/auth/refresh
+6. POST /api/auth/logout
+7. POST /api/auth/forgot-password/request-otp
+8. POST /api/auth/forgot-password/verify-otp
+
+Role-protected APIs:
+
+1. GET /api/dashboard/faculty -> role `faculty`
+2. GET /api/dashboard/school -> role `school`
+3. GET /api/dashboard/admin -> role `super_admin`
+
 ## 3) Recommended Frontend Calls
 
 Use these depending on UI need:
@@ -124,6 +142,13 @@ Notes:
 2. `GET /api/v1/tenders` and `GET /recruitments` currently return grouped data under `data` without pagination.
 3. For detail endpoints (`/events/:id`), `data` is an object.
 
+## 4.1) Demo Credentials (Seeded in DB)
+
+These are stored in the `users` table after schema run/startup bootstrap:
+
+1. Change these credentials immediately in non-local environments.
+2. Password reset requires OTP verification over email.
+
 ## 5) DB Verification After Schema Run
 
 Expected counts in current seed:
@@ -136,6 +161,9 @@ Expected counts in current seed:
 6. tenders = 3
 7. recruitments = 8
 8. recruitment_documents = 13
+9. users = 3
+10. auth_refresh_tokens = 0
+11. password_reset_otps = 0
 
 Verify:
 
@@ -154,7 +182,13 @@ SELECT 'tenders', COUNT(*) FROM tenders
 UNION ALL
 SELECT 'recruitments', COUNT(*) FROM recruitments
 UNION ALL
-SELECT 'recruitment_documents', COUNT(*) FROM recruitment_documents;
+SELECT 'recruitment_documents', COUNT(*) FROM recruitment_documents
+UNION ALL
+SELECT 'users', COUNT(*) FROM users
+UNION ALL
+SELECT 'auth_refresh_tokens', COUNT(*) FROM auth_refresh_tokens
+UNION ALL
+SELECT 'password_reset_otps', COUNT(*) FROM password_reset_otps;
 ```
 
 ## 6) Smoke Test Flow
@@ -167,6 +201,10 @@ SELECT 'recruitment_documents', COUNT(*) FROM recruitment_documents;
    - GET http://localhost:3000/api/v1/events/1/related?limit=4
 5. GET http://localhost:3000/api/v1/tenders
 6. GET http://localhost:3000/recruitments
+7. POST http://localhost:3000/api/auth/login/teacher
+   - body: {"email":"faculty@gbu.ac.in","password":"Faculty@123"}
+8. POST http://localhost:3000/api/auth/forgot-password/request-otp
+   - body: {"email":"faculty@gbu.ac.in"}
 
 If all return `success: true` with non-empty data, frontend is connected correctly.
 

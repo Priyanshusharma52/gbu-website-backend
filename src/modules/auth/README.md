@@ -14,6 +14,8 @@ Active endpoints:
 - `POST /api/auth/refresh`
 - `POST /api/auth/logout`
 - `GET /api/auth/me`
+- `POST /api/auth/forgot-password/request-otp`
+- `POST /api/auth/forgot-password/verify-otp`
 
 ## Module Structure
 
@@ -28,10 +30,11 @@ Active endpoints:
   - Returns standardized success/error responses.
 
 - `auth.service.js`
-  - Validates credentials (email/password).
+  - Validates credentials from DB-backed `users` table.
   - Enforces portal-role mapping.
   - Issues JWT access and refresh tokens.
-  - Tracks refresh tokens in `refreshTokenStore` (in memory).
+  - Persists refresh tokens in `auth_refresh_tokens`.
+  - Handles forgot-password OTP generation and password reset.
 
 ## Authentication Flow
 
@@ -53,7 +56,7 @@ Active endpoints:
 
 If credentials are valid but route-role mapping fails, API returns `401 Invalid credentials`.
 
-## Demo Accounts (Current)
+## Demo Accounts (DB Seeded)
 
 - Teacher
   - Email: `faculty@gbu.ac.in`
@@ -79,13 +82,17 @@ If credentials are valid but route-role mapping fails, API returns `401 Invalid 
 
 - Refresh token:
   - Signed using `JWT_REFRESH_SECRET`.
-  - Stored in in-memory token store.
+  - Stored as SHA-256 hash in `auth_refresh_tokens` table.
   - Used only for issuing a new access token via `/api/auth/refresh`.
 
-Important:
+## Forgot Password (Email OTP)
 
-- Refresh tokens are not persisted.
-- Server restart invalidates existing refresh tokens.
+1. Client calls `POST /api/auth/forgot-password/request-otp` with email.
+2. Backend generates 6-digit OTP, stores SHA-256 hash in `password_reset_otps`.
+3. OTP is sent to registered email via SMTP.
+4. Client calls `POST /api/auth/forgot-password/verify-otp` with email, OTP, and new password.
+5. Backend verifies OTP and resets password hash.
+6. Existing refresh tokens for that user are revoked.
 
 ## Request/Response Examples
 
@@ -152,8 +159,8 @@ curl http://localhost:3000/api/auth/me \
   -H "Authorization: Bearer <accessToken>"
 ```
 
-## Current Constraints
+## Security Notes
 
-- User source is hardcoded in service (not DB-backed yet).
-- Refresh token storage is in memory (no DB/Redis persistence).
-- Password reset and account recovery flows are not implemented yet.
+- Password policy is enforced during reset (length + complexity checks).
+- OTP attempts are capped and OTP expires automatically.
+- Role-based route authorization remains enforced by middleware.
