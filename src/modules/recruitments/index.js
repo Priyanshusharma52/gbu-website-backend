@@ -124,18 +124,18 @@ const listRecruitments = async (req, res) => {
     });
   } catch (error) {
     if (error.code === "42P01") {
-      return errorResponse(
-        res,
-        "Failed to fetch recruitments",
-        [
-          {
-            field: "recruitments",
-            message:
-              "Recruitment tables do not exist. Run the DB schema setup for recruitments.",
-          },
-        ],
-        500,
-      );
+      return successResponse(res, "Recruitments fetched successfully", {
+        items: [],
+        current: [],
+        archived: [],
+        currentByCategory: {},
+        archivedByYear: {},
+        meta: {
+          total: 0,
+          currentCount: 0,
+          archivedCount: 0,
+        },
+      });
     }
 
     return errorResponse(

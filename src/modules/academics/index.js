@@ -43,6 +43,10 @@ router.get("/schools", async (req, res) => {
       schoolsResult.rows.map(mapSchoolRow),
     );
   } catch (error) {
+    if (error.code === "42P01") {
+      return successResponse(res, "Schools fetched successfully", []);
+    }
+
     return errorResponse(
       res,
       "Failed to fetch schools",
@@ -115,6 +119,15 @@ router.get("/schools/:id", async (req, res) => {
       })),
     });
   } catch (error) {
+    if (error.code === "42P01") {
+      return errorResponse(
+        res,
+        "School not found",
+        [{ field: "id", message: "No school found for the provided id" }],
+        404,
+      );
+    }
+
     return errorResponse(
       res,
       "Failed to fetch school details",
