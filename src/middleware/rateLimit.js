@@ -1,10 +1,17 @@
 const rateLimit = require('express-rate-limit');
+const env = require('../config/env');
+
+const shouldSkipRateLimit = (req) => {
+  const path = String(req.path || '').toLowerCase();
+  return req.method === 'OPTIONS' || path === '/health' || path === '/api/health';
+};
 
 const apiRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 300,
+  windowMs: env.apiRateLimitWindowMs,
+  max: env.apiRateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: shouldSkipRateLimit,
   message: {
     success: false,
     message: 'Too many requests, please try again later.',
@@ -13,8 +20,8 @@ const apiRateLimiter = rateLimit({
 });
 
 const authRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
+  windowMs: env.authRateLimitWindowMs,
+  max: env.authRateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
   message: {

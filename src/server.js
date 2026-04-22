@@ -2,6 +2,7 @@ const app = require("./app");
 const env = require("./config/env");
 const { connectDb } = require("./config/db");
 const { logInfo, logError } = require("./config/logger");
+const { ensureAuthBootstrap } = require("./modules/auth/auth.service");
 // // const bookingRoutes = require("./modules/booking");
 // const bookingRoutes = require("./modules/booking");
 // app.use("/api/bookings", bookingRoutes);
@@ -9,6 +10,7 @@ const { logInfo, logError } = require("./config/logger");
 const startServer = async () => {
   try {
     await connectDb();
+    await ensureAuthBootstrap();
 
     app.listen(env.port, () => {
       logInfo(`GBU backend server running on http://localhost:${env.port}`, {

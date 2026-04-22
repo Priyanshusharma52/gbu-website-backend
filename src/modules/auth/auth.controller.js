@@ -1,4 +1,10 @@
-const { login, refresh, logout } = require("./auth.service");
+const {
+  login,
+  refresh,
+  logout,
+  requestPasswordResetOtp,
+  verifyOtpAndResetPassword,
+} = require("./auth.service");
 const { successResponse, errorResponse } = require("../../utils/response");
 
 const validateCredentials = (email, password) => {
@@ -22,7 +28,10 @@ const createRoleLoginHandler = (portalRole, roleLabel) => {
       return errorResponse(res, "Validation failed", validationErrors, 400);
     }
 
-    const authResult = await login(email, password, portalRole);
+    const authResult = await login(email, password, portalRole, {
+      userAgent: req.get("user-agent"),
+      ipAddress: req.ip,
+    });
 
     if (!authResult) {
       return errorResponse(
@@ -51,9 +60,9 @@ const teacherLoginHandler = createRoleLoginHandler("teacher", "Teacher");
 const schoolLoginHandler = createRoleLoginHandler("school", "School");
 const adminLoginHandler = createRoleLoginHandler("admin", "Admin");
 
-const refreshHandler = (req, res) => {
+const refreshHandler = async (req, res) => {
   const { refreshToken } = req.body;
-  const tokenResult = refresh(refreshToken);
+  const tokenResult = await refresh(refreshToken);
 
   if (!tokenResult) {
     return errorResponse(
@@ -72,9 +81,9 @@ const refreshHandler = (req, res) => {
   return successResponse(res, "Access token refreshed", tokenResult, 200);
 };
 
-const logoutHandler = (req, res) => {
+const logoutHandler = async (req, res) => {
   const { refreshToken } = req.body;
-  const isRemoved = logout(refreshToken);
+  const isRemoved = await logout(refreshToken);
 
   if (!isRemoved) {
     return errorResponse(
@@ -86,6 +95,76 @@ const logoutHandler = (req, res) => {
   }
 
   return successResponse(res, "Logged out successfully", {}, 200);
+};
+
+const forgotPasswordRequestHandler = async (req, res) => {
+  const email = String(req.body?.email || "").trim();
+
+  if (!email) {
+    return errorResponse(
+      res,
+      "Validation failed",
+      [{ field: "email", message: "Email is required" }],
+      400,
+    );
+  }
+
+  await requestPasswordResetOtp(email);
+
+  return successResponse(
+    res,
+    "If the email exists, OTP has been sent",
+    {},
+    200,
+  );
+};
+
+const forgotPasswordVerifyHandler = async (req, res) => {
+  const email = String(req.body?.email || "").trim();
+  const otp = String(req.body?.otp || "").trim();
+  const newPassword = String(req.body?.newPassword || "").trim();
+  const confirmPassword = String(req.body?.confirmPassword || "").trim();
+
+  if (!email || !otp || !newPassword || !confirmPassword) {
+    return errorResponse(
+      res,
+      "Validation failed",
+      [
+        { field: "email", message: "Email is required" },
+        { field: "otp", message: "OTP is required" },
+        { field: "newPassword", message: "New password is required" },
+        { field: "confirmPassword", message: "Confirm password is required" },
+      ],
+      400,
+    );
+  }
+
+  if (newPassword !== confirmPassword) {
+    return errorResponse(
+      res,
+      "Validation failed",
+      [{ field: "confirmPassword", message: "Passwords do not match" }],
+      400,
+    );
+  }
+
+  const result = await verifyOtpAndResetPassword({ email, otp, newPassword });
+
+  if (!result.success) {
+    const statusCode =
+      result.code === "WEAK_PASSWORD" || result.code === "INVALID_OTP"
+        ? 400
+        : 401;
+
+    return errorResponse(
+      res,
+      "Password reset failed",
+      [{ field: result.code || "reset", message: result.message }],
+      statusCode,
+    );
+  }
+
+  return successResponse(res, "Password reset successful", {}, 200);
 };
 
 const meHandler = (req, res) => {
@@ -104,4 +183,6 @@ module.exports = {
   refreshHandler,
   logoutHandler,
   meHandler,
+  forgotPasswordRequestHandler,
+  forgotPasswordVerifyHandler,
 };
