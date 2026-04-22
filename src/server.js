@@ -12,9 +12,10 @@ const startServer = async () => {
     await connectDb();
     await ensureAuthBootstrap();
 
-    app.listen(env.port, () => {
-      logInfo(`GBU backend server running on http://localhost:${env.port}`, {
+    app.listen(env.port, env.host, () => {
+      logInfo("GBU backend server running", {
         env: env.nodeEnv,
+        host: env.host,
         port: env.port,
       });
     });
