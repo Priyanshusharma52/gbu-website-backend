@@ -645,33 +645,30 @@ router.get("/news/:id", async (req, res) => {
   }
 });
 
-router.get(
-  ["/media-gallery", "/mediagallery", "/media-gallary", "/mediagallary"],
-  async (req, res) => {
-    try {
-      const listResult = await query(
-        `
-        SELECT id, title, category, year, published_date, images
-        FROM media_gallery
-        ORDER BY published_date DESC, id DESC
-        `,
-      );
+router.get("/media-gallery", async (req, res) => {
+  try {
+    const listResult = await query(
+      `
+      SELECT id, title, category, year, published_date, images
+      FROM media_gallery
+      ORDER BY published_date DESC, id DESC
+      `,
+    );
 
-      return successResponse(
-        res,
-        "Media gallery fetched successfully",
-        listResult.rows.map(mapMediaGalleryItem),
-      );
-    } catch (error) {
-      return errorResponse(
-        res,
-        "Failed to fetch media gallery",
-        [{ field: "media_gallery", message: error.message }],
-        500,
-      );
-    }
-  },
-);
+    return successResponse(
+      res,
+      "Media gallery fetched successfully",
+      listResult.rows.map(mapMediaGalleryItem),
+    );
+  } catch (error) {
+    return errorResponse(
+      res,
+      "Failed to fetch media gallery",
+      [{ field: "media_gallery", message: error.message }],
+      500,
+    );
+  }
+});
 
 router.get("/events", async (req, res) => {
   try {
@@ -1039,7 +1036,7 @@ router.post(
           excerpt,
           pdf_url,
           views,
-          category,
+          category
         ) VALUES (
           $1, $2, $3::date, $4, $5, $6, $7, $8
         )

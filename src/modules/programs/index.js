@@ -72,6 +72,10 @@ router.get("/programs", async (req, res) => {
       })),
     );
   } catch (error) {
+    if (error.code === "42P01") {
+      return successResponse(res, "Programs fetched successfully", []);
+    }
+
     return errorResponse(
       res,
       "Failed to fetch programs",
@@ -164,6 +168,10 @@ router.get("/courses", async (req, res) => {
       })),
     );
   } catch (error) {
+    if (error.code === "42P01") {
+      return successResponse(res, "Courses fetched successfully", []);
+    }
+
     return errorResponse(
       res,
       "Failed to fetch courses",

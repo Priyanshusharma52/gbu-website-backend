@@ -71,6 +71,10 @@ router.get("/departments", async (req, res) => {
       departmentsResult.rows.map(toDepartmentPayload),
     );
   } catch (error) {
+    if (error.code === "42P01") {
+      return successResponse(res, "Departments fetched successfully", []);
+    }
+
     return errorResponse(
       res,
       "Failed to fetch departments",
@@ -190,6 +194,15 @@ router.get("/departments/:slug", async (req, res) => {
       programs,
     });
   } catch (error) {
+    if (error.code === "42P01") {
+      return errorResponse(
+        res,
+        "Department not found",
+        [{ field: "slug", message: "No department found for this slug" }],
+        404,
+      );
+    }
+
     return errorResponse(
       res,
       "Failed to fetch department details",

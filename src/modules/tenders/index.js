@@ -101,17 +101,16 @@ router.get("/tenders", async (req, res) => {
     return successResponse(res, "Tenders fetched successfully", payload);
   } catch (error) {
     if (error.code === "42P01") {
-      return errorResponse(
-        res,
-        "Failed to fetch tenders",
-        [
-          {
-            field: "tenders",
-            message: "Table 'tenders' does not exist. Run the DB schema setup.",
-          },
-        ],
-        500,
-      );
+      return successResponse(res, "Tenders fetched successfully", {
+        items: [],
+        current: [],
+        archived: [],
+        meta: {
+          total: 0,
+          currentCount: 0,
+          archivedCount: 0,
+        },
+      });
     }
 
     return errorResponse(
