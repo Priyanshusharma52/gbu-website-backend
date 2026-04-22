@@ -8,6 +8,7 @@ const departmentRoutes = require("../modules/departments");
 const programRoutes = require("../modules/programs");
 const communicationsRoutes = require("../modules/communications");
 const tendersRoutes = require("../modules/tenders");
+const usersRoutes = require("../modules/users");
 const router = express.Router();
 const v1Router = express.Router();
 
@@ -30,5 +31,6 @@ v1Router.use("/", departmentRoutes);
 v1Router.use("/", programRoutes);
 v1Router.use("/", communicationsRoutes);
 v1Router.use("/", tendersRoutes);
+v1Router.use("/", usersRoutes);
 router.use("/v1", v1Router);
 module.exports = router;

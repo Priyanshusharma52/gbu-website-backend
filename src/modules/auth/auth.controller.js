@@ -7,10 +7,10 @@ const {
 } = require("./auth.service");
 const { successResponse, errorResponse } = require("../../utils/response");
 
-const validateCredentials = (email, password) => {
-  if (!email || !password) {
+const validateCredentials = (loginId, password) => {
+  if (!loginId || !password) {
     return [
-      { field: "email", message: "Email is required" },
+      { field: "loginId", message: "Username or email is required" },
       { field: "password", message: "Password is required" },
     ];
   }
@@ -20,15 +20,16 @@ const validateCredentials = (email, password) => {
 
 const createRoleLoginHandler = (portalRole, roleLabel) => {
   return async (req, res) => {
-    const { email, password } = req.body;
+    const loginId = String(req.body?.email || req.body?.username || "").trim();
+    const password = String(req.body?.password || "");
 
-    const validationErrors = validateCredentials(email, password);
+    const validationErrors = validateCredentials(loginId, password);
 
     if (validationErrors) {
       return errorResponse(res, "Validation failed", validationErrors, 400);
     }
 
-    const authResult = await login(email, password, portalRole, {
+    const authResult = await login(loginId, password, portalRole, {
       userAgent: req.get("user-agent"),
       ipAddress: req.ip,
     });
@@ -40,7 +41,7 @@ const createRoleLoginHandler = (portalRole, roleLabel) => {
         [
           {
             field: "credentials",
-            message: `Email or password is incorrect for ${roleLabel} login`,
+            message: `Username/email or password is incorrect for ${roleLabel} login`,
           },
         ],
         401,

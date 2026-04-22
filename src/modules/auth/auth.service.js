@@ -18,18 +18,21 @@ const demoUsers = [
   {
     name: "Super Admin",
     email: "admin@gbu.ac.in",
+    username: "admin",
     role: ROLES.SUPER_ADMIN,
     password: "Admin@123",
   },
   {
     name: "School User",
     email: "school@gbu.ac.in",
+    username: "school",
     role: ROLES.SCHOOL,
     password: "School@123",
   },
   {
     name: "Faculty User",
     email: "faculty@gbu.ac.in",
+    username: "faculty",
     role: ROLES.FACULTY,
     password: "Faculty@123",
   },
@@ -106,15 +109,22 @@ const ensureAuthBootstrap = async () => {
       id SERIAL PRIMARY KEY,
       name VARCHAR(120) NOT NULL,
       email VARCHAR(255) UNIQUE NOT NULL,
+      username VARCHAR(80),
       role VARCHAR(30) NOT NULL,
       password_hash VARCHAR(255) NOT NULL,
       is_active BOOLEAN NOT NULL DEFAULT TRUE,
       email_verified BOOLEAN NOT NULL DEFAULT TRUE,
+      linked_faculty_id VARCHAR(120) NOT NULL DEFAULT '',
+      linked_school VARCHAR(80) NOT NULL DEFAULT '',
       password_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
   `);
+
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(80);`);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS linked_faculty_id VARCHAR(120) NOT NULL DEFAULT '';`);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS linked_school VARCHAR(80) NOT NULL DEFAULT '';`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS auth_refresh_tokens (
@@ -145,6 +155,9 @@ const ensureAuthBootstrap = async () => {
     `CREATE INDEX IF NOT EXISTS idx_users_email ON users((LOWER(email)));`,
   );
   await query(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_unique ON users((LOWER(username))) WHERE username IS NOT NULL;`,
+  );
+  await query(
     `CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_active ON auth_refresh_tokens(user_id, revoked_at, expires_at);`,
   );
   await query(
@@ -155,11 +168,22 @@ const ensureAuthBootstrap = async () => {
     const passwordHash = await bcrypt.hash(item.password, 12);
     await query(
       `
-      INSERT INTO users (name, email, role, password_hash, is_active, email_verified)
-      VALUES ($1, $2, $3, $4, TRUE, TRUE)
-      ON CONFLICT (email) DO NOTHING;
+      INSERT INTO users (name, email, username, role, password_hash, is_active, email_verified)
+      VALUES ($1, $2, $3, $4, $5, TRUE, TRUE)
+      ON CONFLICT (email) DO UPDATE
+      SET username = COALESCE(users.username, EXCLUDED.username);
       `,
-      [item.name, item.email, item.role, passwordHash],
+      [item.name, item.email, item.username, item.role, passwordHash],
+    );
+
+    await query(
+      `
+      UPDATE users
+      SET username = $1
+      WHERE LOWER(email) = LOWER($2)
+        AND (username IS NULL OR TRIM(username) = '');
+      `,
+      [item.username, item.email],
     );
   }
 
@@ -168,16 +192,16 @@ const ensureAuthBootstrap = async () => {
 
 const login = async (email, password, portalRole, requestMeta = {}) => {
   await ensureAuthBootstrap();
-  const normalizedEmail = normalizeEmail(email);
+  const normalizedLoginId = normalizeEmail(email);
 
   const userResult = await query(
     `
-    SELECT id, name, email, role, password_hash, is_active
+    SELECT id, name, email, username, role, password_hash, is_active
     FROM users
-    WHERE LOWER(email) = $1
+    WHERE LOWER(email) = $1 OR LOWER(COALESCE(username, '')) = $1
     LIMIT 1
     `,
-    [normalizedEmail],
+    [normalizedLoginId],
   );
 
   const user = userResult.rows[0];
@@ -230,6 +254,7 @@ const login = async (email, password, portalRole, requestMeta = {}) => {
       id: user.id,
       name: user.name,
       email: user.email,
+      username: user.username,
       role: user.role,
     },
     accessToken,
