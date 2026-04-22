@@ -4,6 +4,7 @@ const { query } = require("../../config/db");
 const { successResponse, errorResponse } = require("../../utils/response");
 const { authenticate, authorize } = require("../../middleware/auth");
 const { ensureAuthBootstrap } = require("../auth/auth.service");
+const { sendMail, isMailConfigured } = require("../../utils/mailer");
 const ROLES = require("../../constants/roles");
 
 const router = express.Router();
@@ -146,6 +147,37 @@ const buildFilters = ({ queryText, role, status }) => {
 	}
 
 	return { clauses, params };
+};
+
+const buildCredentialMailContent = ({ facultyName, username, password, linkedFacultyId }) => {
+	const safeFacultyName = normalize(facultyName) || "Faculty Member";
+	const safeUsername = normalize(username) || "";
+	const safePassword = String(password || "").trim();
+	const safeLinkedFacultyId = normalize(linkedFacultyId) || "N/A";
+
+	const text = [
+		`Dear ${safeFacultyName},`,
+		"",
+		"Your GBU Faculty Portal credentials are generated.",
+		`Username: ${safeUsername}`,
+		`Password: ${safePassword}`,
+		`Linked Faculty ID: ${safeLinkedFacultyId}`,
+		"",
+		"Please change your password after first login.",
+	].join("\n");
+
+	const html = `
+		<p>Dear ${safeFacultyName},</p>
+		<p>Your GBU Faculty Portal credentials are generated.</p>
+		<ul>
+			<li><strong>Username:</strong> ${safeUsername}</li>
+			<li><strong>Password:</strong> ${safePassword}</li>
+			<li><strong>Linked Faculty ID:</strong> ${safeLinkedFacultyId}</li>
+		</ul>
+		<p>Please change your password after first login.</p>
+	`;
+
+	return { text, html };
 };
 
 const validateRoleLinks = async ({
@@ -770,6 +802,108 @@ router.get("/admin/accounts/audit-logs", async (req, res) => {
 			res,
 			"Failed to fetch account audit logs",
 			[{ field: "auditLogs", message: error.message }],
+			500,
+		);
+	}
+});
+
+router.post("/admin/accounts/dispatch-credential-emails", async (req, res) => {
+	try {
+		await ensureAuthBootstrap();
+
+		const items = Array.isArray(req.body?.items) ? req.body.items : [];
+		if (!items.length) {
+			return errorResponse(
+				res,
+				"Validation failed",
+				[{ field: "items", message: "At least one queue item is required" }],
+				400,
+			);
+		}
+
+		if (items.length > 100) {
+			return errorResponse(
+				res,
+				"Validation failed",
+				[{ field: "items", message: "Maximum 100 queue items allowed per request" }],
+				400,
+			);
+		}
+
+		const dispatchResults = [];
+		for (const item of items) {
+			const queueId = normalize(item?.id) || `queue-${Date.now()}`;
+			const to = normalize(item?.to);
+			const subject = normalize(item?.subject) || "GBU Faculty Portal Credentials";
+			const payload = item?.payload && typeof item.payload === "object" ? item.payload : {};
+
+			if (!to || !to.includes("@")) {
+				dispatchResults.push({
+					id: queueId,
+					to,
+					status: "failed",
+					error: "Valid recipient email is required",
+				});
+				continue;
+			}
+
+			const { text, html } = buildCredentialMailContent(payload);
+
+			try {
+				const result = await sendMail({ to, subject, text, html });
+				dispatchResults.push({
+					id: queueId,
+					to,
+					status: result?.queued ? "sent" : "not-configured",
+					messageId: result?.messageId || "",
+				});
+			} catch (error) {
+				dispatchResults.push({
+					id: queueId,
+					to,
+					status: "failed",
+					error: error.message || "Email send failed",
+				});
+			}
+		}
+
+		const summary = dispatchResults.reduce(
+			(acc, item) => {
+				acc.total += 1;
+				if (item.status === "sent") acc.sent += 1;
+				if (item.status === "failed") acc.failed += 1;
+				if (item.status === "not-configured") acc.notConfigured += 1;
+				return acc;
+			},
+			{ total: 0, sent: 0, failed: 0, notConfigured: 0 },
+		);
+
+		await logAdminAction({
+			req,
+			action: "dispatch-credential-emails",
+			entityId: "mail-queue",
+			summary: `Dispatched credential emails: sent ${summary.sent}, failed ${summary.failed}, not configured ${summary.notConfigured}`,
+			metadata: {
+				total: summary.total,
+				sent: summary.sent,
+				failed: summary.failed,
+				notConfigured: summary.notConfigured,
+				mailConfigured: isMailConfigured(),
+			},
+		});
+
+		return successResponse(res, "Credential email queue processed", {
+			items: dispatchResults,
+			summary: {
+				...summary,
+				mailConfigured: isMailConfigured(),
+			},
+		});
+	} catch (error) {
+		return errorResponse(
+			res,
+			"Failed to dispatch credential emails",
+			[{ field: "mailQueue", message: error.message }],
 			500,
 		);
 	}
