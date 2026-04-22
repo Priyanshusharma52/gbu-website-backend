@@ -116,6 +116,7 @@ const ensureAuthBootstrap = async () => {
       email_verified BOOLEAN NOT NULL DEFAULT TRUE,
       linked_faculty_id VARCHAR(120) NOT NULL DEFAULT '',
       linked_school VARCHAR(80) NOT NULL DEFAULT '',
+      linked_department VARCHAR(120) NOT NULL DEFAULT '',
       password_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -125,6 +126,7 @@ const ensureAuthBootstrap = async () => {
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(80);`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS linked_faculty_id VARCHAR(120) NOT NULL DEFAULT '';`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS linked_school VARCHAR(80) NOT NULL DEFAULT '';`);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS linked_department VARCHAR(120) NOT NULL DEFAULT '';`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS auth_refresh_tokens (
@@ -156,6 +158,12 @@ const ensureAuthBootstrap = async () => {
   );
   await query(
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_unique ON users((LOWER(username))) WHERE username IS NOT NULL;`,
+  );
+  await query(
+    `CREATE INDEX IF NOT EXISTS idx_users_role_linked_school ON users(role, (LOWER(linked_school)));`,
+  );
+  await query(
+    `CREATE INDEX IF NOT EXISTS idx_users_role_linked_faculty_id ON users(role, (LOWER(linked_faculty_id)));`,
   );
   await query(
     `CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_active ON auth_refresh_tokens(user_id, revoked_at, expires_at);`,

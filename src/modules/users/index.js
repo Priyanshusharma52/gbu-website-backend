@@ -48,6 +48,7 @@ const mapAccount = (row) => ({
 	status: row.is_active ? "active" : "inactive",
 	linkedFacultyId: row.linked_faculty_id || "",
 	linkedSchool: row.linked_school || "",
+	linkedDepartment: row.linked_department || "",
 });
 
 const mapAuditLog = (row) => ({
@@ -130,6 +131,7 @@ const buildFilters = ({ queryText, role, status }) => {
 			OR LOWER(COALESCE(username, '')) LIKE $${idx}
 			OR LOWER(COALESCE(linked_faculty_id, '')) LIKE $${idx}
 			OR LOWER(COALESCE(linked_school, '')) LIKE $${idx}
+			OR LOWER(COALESCE(linked_department, '')) LIKE $${idx}
 		)`);
 	}
 
@@ -144,6 +146,162 @@ const buildFilters = ({ queryText, role, status }) => {
 	}
 
 	return { clauses, params };
+};
+
+const validateRoleLinks = async ({
+	role,
+	linkedFacultyId,
+	linkedSchool,
+	linkedDepartment,
+	accountId,
+}) => {
+	const roleErrors = [];
+	const excludedAccountId = Number.isInteger(accountId) ? accountId : null;
+
+	if (role === "school") {
+		if (!linkedSchool) {
+			roleErrors.push({
+				field: "linkedSchool",
+				message: "School account must have a linked school",
+			});
+			return { errors: roleErrors };
+		}
+
+		const schoolExistsResult = await query(
+			`
+			SELECT id
+			FROM schools
+			WHERE LOWER(COALESCE(code, '')) = LOWER($1)
+				OR LOWER(COALESCE(name, '')) = LOWER($1)
+				OR LOWER(COALESCE(slug, '')) = LOWER($1)
+			LIMIT 1
+			`,
+			[linkedSchool],
+		);
+
+		if (!schoolExistsResult.rows.length) {
+			roleErrors.push({
+				field: "linkedSchool",
+				message: "Linked school does not exist",
+			});
+			return { errors: roleErrors };
+		}
+
+		const duplicateSchoolResult = await query(
+			`
+			SELECT id
+			FROM users
+			WHERE role = $1
+				AND LOWER(TRIM(COALESCE(linked_school, ''))) = LOWER(TRIM($2))
+				AND ($3::INT IS NULL OR id <> $3::INT)
+			LIMIT 1
+			`,
+			[ROLES.SCHOOL, linkedSchool, excludedAccountId],
+		);
+
+		if (duplicateSchoolResult.rows.length) {
+			roleErrors.push({
+				field: "linkedSchool",
+				message: "This school already has a login account",
+			});
+		}
+
+		return { errors: roleErrors };
+	}
+
+	if (role === "teacher") {
+		if (!linkedFacultyId) {
+			roleErrors.push({
+				field: "linkedFacultyId",
+				message: "Faculty account must have a linked faculty id",
+			});
+		}
+
+		if (!linkedSchool) {
+			roleErrors.push({
+				field: "linkedSchool",
+				message: "Faculty account must be linked to a school",
+			});
+		}
+
+		if (!linkedDepartment) {
+			roleErrors.push({
+				field: "linkedDepartment",
+				message: "Faculty account must be linked to a department",
+			});
+		}
+
+		if (roleErrors.length) {
+			return { errors: roleErrors };
+		}
+
+		const duplicateFacultyResult = await query(
+			`
+			SELECT id
+			FROM users
+			WHERE role = $1
+				AND LOWER(TRIM(COALESCE(linked_faculty_id, ''))) = LOWER(TRIM($2))
+				AND ($3::INT IS NULL OR id <> $3::INT)
+			LIMIT 1
+			`,
+			[ROLES.FACULTY, linkedFacultyId, excludedAccountId],
+		);
+
+		if (duplicateFacultyResult.rows.length) {
+			roleErrors.push({
+				field: "linkedFacultyId",
+				message: "This faculty already has a login account",
+			});
+		}
+
+		const schoolResult = await query(
+			`
+			SELECT id, code, name
+			FROM schools
+			WHERE LOWER(COALESCE(code, '')) = LOWER($1)
+				OR LOWER(COALESCE(name, '')) = LOWER($1)
+				OR LOWER(COALESCE(slug, '')) = LOWER($1)
+			LIMIT 1
+			`,
+			[linkedSchool],
+		);
+
+		if (!schoolResult.rows.length) {
+			roleErrors.push({
+				field: "linkedSchool",
+				message: "Linked school does not exist",
+			});
+			return { errors: roleErrors };
+		}
+
+		const school = schoolResult.rows[0];
+		const departmentResult = await query(
+			`
+			SELECT id
+			FROM departments
+			WHERE school_id = $1
+				AND (
+					LOWER(COALESCE(code, '')) = LOWER($2)
+					OR LOWER(COALESCE(name, '')) = LOWER($2)
+					OR LOWER(COALESCE(slug, '')) = LOWER($2)
+					OR CAST(id AS TEXT) = $2
+				)
+			LIMIT 1
+			`,
+			[school.id, linkedDepartment],
+		);
+
+		if (!departmentResult.rows.length) {
+			roleErrors.push({
+				field: "linkedDepartment",
+				message: "Linked department does not belong to the selected school",
+			});
+		}
+
+		return { errors: roleErrors };
+	}
+
+	return { errors: roleErrors };
 };
 
 router.use(authenticate, authorize(ROLES.SUPER_ADMIN));
@@ -178,7 +336,7 @@ router.get("/admin/accounts", async (req, res) => {
 
 		const result = await query(
 			`
-			SELECT id, name, email, username, role, is_active, linked_faculty_id, linked_school
+			SELECT id, name, email, username, role, is_active, linked_faculty_id, linked_school, linked_department
 			FROM users
 			WHERE ${whereClause}
 			ORDER BY id DESC
@@ -219,6 +377,7 @@ router.post("/admin/accounts", async (req, res) => {
 		const status = normalize(req.body?.status).toLowerCase();
 		const linkedFacultyId = normalize(req.body?.linkedFacultyId);
 		const linkedSchool = normalize(req.body?.linkedSchool);
+		const linkedDepartment = normalize(req.body?.linkedDepartment);
 
 		if (!username || !password || !UI_TO_DB_ROLE[role]) {
 			return errorResponse(
@@ -233,6 +392,17 @@ router.post("/admin/accounts", async (req, res) => {
 			);
 		}
 
+		const roleValidation = await validateRoleLinks({
+			role,
+			linkedFacultyId,
+			linkedSchool,
+			linkedDepartment,
+		});
+
+		if (roleValidation.errors.length) {
+			return errorResponse(res, "Validation failed", roleValidation.errors, 400);
+		}
+
 		const passwordHash = await bcrypt.hash(password, 12);
 		const result = await query(
 			`
@@ -245,12 +415,13 @@ router.post("/admin/accounts", async (req, res) => {
 				is_active,
 				linked_faculty_id,
 				linked_school,
+				linked_department,
 				email_verified,
 				password_updated_at,
 				updated_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE, NOW(), NOW())
-			RETURNING id, name, email, username, role, is_active, linked_faculty_id, linked_school
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, NOW(), NOW())
+			RETURNING id, name, email, username, role, is_active, linked_faculty_id, linked_school, linked_department
 			`,
 			[
 				name || username,
@@ -261,6 +432,7 @@ router.post("/admin/accounts", async (req, res) => {
 				status !== "inactive",
 				linkedFacultyId,
 				linkedSchool,
+				linkedDepartment,
 			],
 		);
 
@@ -276,6 +448,7 @@ router.post("/admin/accounts", async (req, res) => {
 				status: status === "inactive" ? "inactive" : "active",
 				linkedFacultyId,
 				linkedSchool,
+				linkedDepartment,
 			},
 		});
 
@@ -341,6 +514,7 @@ router.put("/admin/accounts/:id", async (req, res) => {
 		const status = normalize(req.body?.status).toLowerCase();
 		const linkedFacultyId = normalize(req.body?.linkedFacultyId);
 		const linkedSchool = normalize(req.body?.linkedSchool);
+		const linkedDepartment = normalize(req.body?.linkedDepartment);
 
 		if (!username || (role && !UI_TO_DB_ROLE[role])) {
 			return errorResponse(
@@ -354,6 +528,19 @@ router.put("/admin/accounts/:id", async (req, res) => {
 			);
 		}
 
+		const effectiveRole = role || DB_TO_UI_ROLE[existing.role] || "teacher";
+		const roleValidation = await validateRoleLinks({
+			role: effectiveRole,
+			linkedFacultyId,
+			linkedSchool,
+			linkedDepartment,
+			accountId,
+		});
+
+		if (roleValidation.errors.length) {
+			return errorResponse(res, "Validation failed", roleValidation.errors, 400);
+		}
+
 		let sql = `
 			UPDATE users
 			SET name = $1,
@@ -363,6 +550,7 @@ router.put("/admin/accounts/:id", async (req, res) => {
 					is_active = $5,
 					linked_faculty_id = $6,
 					linked_school = $7,
+					linked_department = $8,
 					updated_at = NOW()`;
 
 		const params = [
@@ -373,17 +561,18 @@ router.put("/admin/accounts/:id", async (req, res) => {
 			status === "inactive" ? false : true,
 			linkedFacultyId,
 			linkedSchool,
+			linkedDepartment,
 		];
 
 		if (password) {
 			const passwordHash = await bcrypt.hash(password, 12);
-			sql += `, password_hash = $8, password_updated_at = NOW()`;
+			sql += `, password_hash = $9, password_updated_at = NOW()`;
 			params.push(passwordHash);
 		}
 
 		params.push(accountId);
 		sql += ` WHERE id = $${params.length}
-			RETURNING id, name, email, username, role, is_active, linked_faculty_id, linked_school`;
+			RETURNING id, name, email, username, role, is_active, linked_faculty_id, linked_school, linked_department`;
 
 		const result = await query(sql, params);
 		const updated = result.rows[0];
@@ -400,6 +589,7 @@ router.put("/admin/accounts/:id", async (req, res) => {
 				passwordReset: Boolean(password),
 				linkedFacultyId: updated.linked_faculty_id || "",
 				linkedSchool: updated.linked_school || "",
+				linkedDepartment: updated.linked_department || "",
 			},
 		});
 
