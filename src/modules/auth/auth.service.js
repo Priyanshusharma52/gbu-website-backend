@@ -173,26 +173,30 @@ const ensureAuthBootstrap = async () => {
   );
 
   for (const item of demoUsers) {
-    const passwordHash = await bcrypt.hash(item.password, 12);
-    await query(
-      `
-      INSERT INTO users (name, email, username, role, password_hash, is_active, email_verified)
-      VALUES ($1, $2, $3, $4, $5, TRUE, TRUE)
-      ON CONFLICT (email) DO UPDATE
-      SET username = COALESCE(users.username, EXCLUDED.username);
-      `,
-      [item.name, item.email, item.username, item.role, passwordHash],
-    );
+    try {
+      const passwordHash = await bcrypt.hash(item.password, 12);
+      await query(
+        `
+        INSERT INTO users (name, email, username, role, password_hash, is_active, email_verified)
+        VALUES ($1, $2, $3, $4, $5, TRUE, TRUE)
+        ON CONFLICT (email) DO UPDATE
+        SET username = COALESCE(users.username, EXCLUDED.username);
+        `,
+        [item.name, item.email, item.username, item.role, passwordHash],
+      );
 
-    await query(
-      `
-      UPDATE users
-      SET username = $1
-      WHERE LOWER(email) = LOWER($2)
-        AND (username IS NULL OR TRIM(username) = '');
-      `,
-      [item.username, item.email],
-    );
+      await query(
+        `
+        UPDATE users
+        SET username = $1
+        WHERE LOWER(email) = LOWER($2)
+          AND (username IS NULL OR TRIM(username) = '');
+        `,
+        [item.username, item.email],
+      );
+    } catch (err) {
+      console.warn(`[Bootstrap] Skipping demo user ${item.email}: ${err.message}`);
+    }
   }
 
   authBootstrapped = true;
