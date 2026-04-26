@@ -71,6 +71,7 @@ const signAccessToken = (user) => {
       email: user.email,
       role: user.role,
       name: user.name,
+      schoolCode: user.linked_school_code,
     },
     env.jwtAccessSecret,
     { expiresIn: env.jwtAccessExpiresIn },
@@ -208,7 +209,7 @@ const login = async (email, password, portalRole, requestMeta = {}) => {
 
   const userResult = await query(
     `
-    SELECT id, name, email, username, role, password_hash, is_active, force_password_reset
+    SELECT id, name, email, username, role, password_hash, is_active, force_password_reset, linked_school_code
     FROM users
     WHERE LOWER(email) = $1 OR LOWER(COALESCE(username, '')) = $1
     LIMIT 1
@@ -284,7 +285,7 @@ const verifyLoginOtp = async (email, otp, newPassword, requestMeta = {}) => {
 
   const userResult = await query(
     `
-    SELECT id, name, email, username, role, password_hash, is_active, force_password_reset
+    SELECT id, name, email, username, role, password_hash, is_active, force_password_reset, linked_school_code
     FROM users
     WHERE LOWER(email) = $1
     LIMIT 1
@@ -380,7 +381,7 @@ const refresh = async (token) => {
 
     const userResult = await query(
       `
-      SELECT id, name, email, role, is_active
+      SELECT id, name, email, role, is_active, linked_school_code
       FROM users
       WHERE id = $1
       LIMIT 1
