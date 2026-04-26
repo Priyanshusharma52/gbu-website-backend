@@ -70,3 +70,6 @@ test-results/
 package-lock-backup.json
 
 full_dump.sql
+insert_ict_faculty.js
+test_json.js
+test_ocfd.js
