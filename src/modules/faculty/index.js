@@ -438,4 +438,39 @@ router.delete("/admin/faculty/:id", adminAuth, async (req, res) => {
 	}
 });
 
+// Admin/School: Generate password for faculty
+router.post("/admin/faculty/:id/generate-password", authenticate, authorize(ROLES.SUPER_ADMIN, ROLES.SCHOOL), async (req, res) => {
+	try {
+		await ensureFacultyContext();
+		const id = normalize(req.params?.id);
+		if (!id) return errorResponse(res, "Faculty id is required", [], 400);
+
+		const facultyRes = await query(`SELECT * FROM faculty_profiles WHERE id = $1 LIMIT 1`, [id]);
+		if (!facultyRes.rows.length) return errorResponse(res, "Faculty not found", [], 404);
+		const faculty = facultyRes.rows[0];
+
+		const userRes = await query(`SELECT id FROM users WHERE linked_faculty_id = $1 LIMIT 1`, [id]);
+		if (userRes.rows.length) {
+			return errorResponse(res, "Account already generated", [{ field: "password", message: "Password has already been generated" }], 400);
+		}
+
+		const bcrypt = require('bcryptjs');
+		const firstName = faculty.name.split(' ')[0];
+		const currentYear = new Date().getFullYear();
+		const plainPassword = `${firstName}${currentYear}`;
+		const passwordHash = await bcrypt.hash(plainPassword, 10);
+
+		const username = faculty.email.split('@')[0];
+		await query(
+			`INSERT INTO users (username, email, name, role, password_hash, linked_faculty_id, linked_school_code, force_password_reset) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE) RETURNING id`,
+			[username, faculty.email, faculty.name, ROLES.FACULTY, passwordHash, id, faculty.school_code]
+		);
+
+		return successResponse(res, "Password generated successfully", { password: plainPassword });
+	} catch (error) {
+		return errorResponse(res, "Failed to generate password", [{ field: "faculty", message: error.message }], 500);
+	}
+});
+
 module.exports = router;
